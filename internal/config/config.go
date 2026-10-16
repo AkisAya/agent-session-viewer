@@ -15,7 +15,8 @@ type Config struct {
 	CodexDir     string
 	CodexIndex   string
 	OpenCodeDB   string
-	WatchSeconds int // 0 = no periodic scanning
+	WatchSeconds int  // 0 = no periodic scanning
+	Memory       bool // keep the index in memory instead of a SQLite file
 }
 
 // Home returns the user's home directory.

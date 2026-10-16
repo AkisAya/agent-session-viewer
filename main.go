@@ -31,6 +31,7 @@ func main() {
 	flag.StringVar(&cfg.CodexIndex, "codex-index", "", "Codex session index file")
 	flag.StringVar(&cfg.OpenCodeDB, "opencode-db", "", "OpenCode SQLite database")
 	flag.IntVar(&cfg.WatchSeconds, "watch-interval", 0, "rescan every N seconds (0 = only on demand)")
+	flag.BoolVar(&cfg.Memory, "memory", false, "keep the index in memory instead of a SQLite file (full rescan on every start)")
 	flag.Parse()
 	cfg.Resolve()
 
@@ -40,13 +41,17 @@ func main() {
 		&opencode.Source{Path: cfg.OpenCodeDB},
 	}
 
-	ix, err := index.Open(cfg.DBPath, sources...)
+	ix, err := index.Open(index.Options{Path: cfg.DBPath, Memory: cfg.Memory}, sources...)
 	if err != nil {
 		log.Fatalf("open index: %v", err)
 	}
 	defer ix.Close()
 
-	log.Printf("cache: %s", cfg.DBPath)
+	if cfg.Memory {
+		log.Printf("cache: memory (nothing written to disk, full rescan on every start)")
+	} else {
+		log.Printf("cache: %s", cfg.DBPath)
+	}
 	start := time.Now()
 	if err := ix.Scan(); err != nil {
 		log.Printf("initial scan error: %v", err)

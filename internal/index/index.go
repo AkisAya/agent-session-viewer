@@ -1,5 +1,6 @@
-// Package index maintains a local SQLite cache of session summaries and
-// orchestrates incremental scanning of every source.
+// Package index maintains a local SQLite cache (on disk, or in memory when
+// requested) of session summaries and orchestrates incremental scanning of
+// every source.
 package index
 
 import (
@@ -65,17 +66,38 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 `
 
+// Options configures how the cache is stored.
+type Options struct {
+	// Path is the on-disk SQLite database. Ignored when Memory is set.
+	Path string
+	// Memory keeps the cache in an in-memory SQLite database: nothing is
+	// written to disk and the index is rebuilt with a full scan on every start.
+	Memory bool
+}
+
 // Open creates/opens the cache database and registers the sources.
-func Open(path string, sources ...source.Source) (*Index, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
+func Open(opts Options, sources ...source.Source) (*Index, error) {
+	var dsn string
+	if opts.Memory {
+		// A named shared in-memory database: every pooled connection sees the
+		// same data, and the database lives as long as this process holds a
+		// connection open. No WAL/synchronous pragmas — they are meaningless
+		// (WAL is unsupported) for in-memory databases.
+		dsn = fmt.Sprintf("file:asv-%d?mode=memory&cache=shared", os.Getpid())
+	} else {
+		if err := os.MkdirAll(filepath.Dir(opts.Path), 0o755); err != nil {
+			return nil, err
+		}
+		dsn = fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)", opts.Path)
 	}
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1) // serialize writes; reads are cheap
+	// Serialize writes; reads are cheap. A single connection also keeps the
+	// shared in-memory database alive for the lifetime of the process.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}

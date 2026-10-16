@@ -2,15 +2,16 @@
 
 一个轻量的本地工具，用于浏览本机上 **Claude Code**、**Codex** 和 **OpenCode** 的历史对话记录。
 
-- 单个 Go 二进制，内嵌前端页面，无需 Node/Python 运行时
+- 单个 Go 二进制，内嵌前端页面
 - 增量索引：只扫描新增内容，二次启动几乎瞬时
-- 空闲低占用（实测 RSS 约 20MB），不主动轮询
+- 空闲低占用，不主动轮询，启动时扫描或手动刷新
 
 ## 快速开始
 
 ```bash
 go build -o asv .
-./asv
+./asv            # 默认：索引持久化到 SQLite 缓存
+./asv -memory    # 可选：索引只放内存，不创建/读写缓存数据库
 ```
 
 然后打开 http://localhost:8787 。
@@ -37,12 +38,13 @@ go build -o asv .
 
 ```
 -port int              HTTP 端口（默认 8787）
--db string             缓存数据库路径（默认 ~/.local/share/agent-session-viewer/index.db）
+-db string             缓存数据库路径（默认 ~/.local/share/agent-session-viewer/index.db，-memory 时忽略）
 -claude-dir string     Claude projects 目录
 -codex-dir string      Codex sessions 目录
 -codex-index string    Codex session_index.jsonl 路径
 -opencode-db string    OpenCode 数据库路径
 -watch-interval int    每隔 N 秒自动增量扫描（0 = 仅按需，默认）
+-memory                索引只保存在内存中，不创建也不读写缓存数据库（每次启动全量扫描）
 ```
 
 ## 设计要点
@@ -51,6 +53,7 @@ go build -o asv .
 - **按需加载正文**：列表只读缓存，对话内容在点击某个会话时才从源文件读取，不进常驻内存。
 - **稳定 ID**：解析出的 session id 随游标一起持久化，保证增量扫描时不会因为读不到文件头而错配。
 - **只读访问**：读取 OpenCode 数据库与磁盘文件均为只读，不影响正在运行的 agent。
+- **内存模式**：`-memory` 用内存版 SQLite（`mode=memory&cache=shared`）承载同一套索引，不落盘、不需要 `-db` 目录；代价是没有持久化游标，每次启动都要全量扫描一次。
 
 ## 项目结构
 
