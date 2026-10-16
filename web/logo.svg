@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Agent Sessions">
+  <rect width="32" height="32" rx="8" fill="#171a21"/>
+  <rect x="6.5" y="8" width="19" height="12.5" rx="3.4" fill="none" stroke="#6ea8fe" stroke-width="2"/>
+  <path d="M11 20.5v4.2l4.6-4.2z" fill="#6ea8fe"/>
+  <circle cx="12.6" cy="14.2" r="1.9" fill="#d97757"/>
+  <circle cx="16" cy="14.2" r="1.9" fill="#10a37f"/>
+  <circle cx="19.4" cy="14.2" r="1.9" fill="#a78bfa"/>
+</svg>

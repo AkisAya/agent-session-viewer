@@ -62,7 +62,8 @@ body {
   top: 0;
   z-index: 10;
 }
-.brand { font-weight: 700; letter-spacing: .3px; white-space: nowrap; flex: 0 0 auto; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .3px; white-space: nowrap; flex: 0 0 auto; }
+.brand .logo { width: 21px; height: 21px; flex: 0 0 auto; color: var(--muted); }
 .stats { display: flex; gap: 10px; flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
 .stat {
   font-size: 12px;
@@ -195,7 +196,8 @@ body {
   background: var(--bg);
   z-index: 5;
 }
-.sidebar-head { color: var(--muted-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; padding: 6px 10px; }
+.sidebar-head { display: flex; align-items: center; gap: 8px; color: var(--muted-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; padding: 6px 10px; }
+.sidebar-count { color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 600; letter-spacing: 0; margin-left: auto; }
 
 .projects { display: flex; flex-direction: column; gap: 2px; }
 .proj {

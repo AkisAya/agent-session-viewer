@@ -120,6 +120,7 @@ async function loadProjects() {
 
 function renderProjects() {
   const total = state.projects.reduce((n, x) => n + x.count, 0);
+  $("proj-count").textContent = state.projects.length;
   const items = [
     `<div class="proj ${state.cwd === "" ? "active" : ""}" data-cwd="">
        <span class="proj-name">全部项目</span><span class="proj-count">${total}</span>

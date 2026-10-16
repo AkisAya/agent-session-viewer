@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Agent Session Viewer</title>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="stylesheet" href="/style.css" />
   <script>
     // Apply the stored theme before first paint to avoid a flash.
@@ -16,7 +17,16 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">Agent&nbsp;Sessions</div>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2.7" y="4.2" width="18.6" height="12.2" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+        <path d="M7.6 16.4v3.3l3.7-3.3z" fill="currentColor" />
+        <circle cx="8.7" cy="10.3" r="1.45" fill="#d97757" />
+        <circle cx="12" cy="10.3" r="1.45" fill="#10a37f" />
+        <circle cx="15.3" cy="10.3" r="1.45" fill="#a78bfa" />
+      </svg>
+      <span>Agent Sessions</span>
+    </div>
     <div class="stats" id="stats"></div>
     <div class="theme-switch" id="theme-switch">
       <button data-pref="auto" title="跟随系统">系统</button>
@@ -45,7 +55,7 @@
 
   <div class="layout">
     <aside class="sidebar">
-      <div class="sidebar-head">项目目录</div>
+      <div class="sidebar-head">项目目录<span id="proj-count" class="sidebar-count"></span></div>
       <div id="projects" class="projects"></div>
     </aside>
     <main>
