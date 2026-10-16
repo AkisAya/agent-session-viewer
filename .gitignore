@@ -1,0 +1,4 @@
+/agent-session
+*.db
+*.db-wal
+*.db-shm

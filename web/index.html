@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Session Viewer</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script>
+    // Apply the stored theme before first paint to avoid a flash.
+    try {
+      var p = localStorage.getItem("as-theme") || "auto";
+      var dark = p === "dark" || (p === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Agent&nbsp;Sessions</div>
+    <div class="stats" id="stats"></div>
+    <div class="theme-switch" id="theme-switch">
+      <button data-pref="auto" title="跟随系统">系统</button>
+      <button data-pref="light" title="浅色模式">浅色</button>
+      <button data-pref="dark" title="深色模式">深色</button>
+    </div>
+    <button id="refresh" class="btn" title="重新扫描">刷新</button>
+  </header>
+
+  <div class="toolbar">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-agent="">全部</button>
+      <button class="tab" data-agent="claude">Claude</button>
+      <button class="tab" data-agent="codex">Codex</button>
+      <button class="tab" data-agent="opencode">OpenCode</button>
+    </nav>
+    <select id="project-select" class="project-select" title="按项目目录筛选"></select>
+    <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…" />
+    <select id="sort" class="sort">
+      <option value="updated">按更新时间</option>
+      <option value="created">按创建时间</option>
+      <option value="messages">按消息数</option>
+      <option value="tokens">按 Token 数</option>
+    </select>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">项目目录</div>
+      <div id="projects" class="projects"></div>
+    </aside>
+    <main>
+      <div id="crumb" class="crumb" hidden></div>
+      <div id="list" class="list"></div>
+      <div id="empty" class="empty" hidden>没有匹配的会话</div>
+    </main>
+  </div>
+
+  <div id="overlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-titles">
+          <div id="detail-title" class="detail-title"></div>
+          <div id="detail-meta" class="detail-meta"></div>
+          <div id="detail-stats" class="detail-stats"></div>
+        </div>
+        <div class="modal-actions">
+          <label class="switch" title="显示模型的思考过程与工具调用">
+            <input type="checkbox" id="show-noise" />
+            <span>思考 / 工具</span>
+          </label>
+          <button id="close" class="btn">关闭</button>
+        </div>
+      </div>
+      <div id="detail-body" class="messages"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
