@@ -9,8 +9,8 @@
 ## 快速开始
 
 ```bash
-go build -o agent-session .
-./agent-session
+go build -o asv .
+./asv
 ```
 
 然后打开 http://localhost:8787 。
@@ -37,7 +37,7 @@ go build -o agent-session .
 
 ```
 -port int              HTTP 端口（默认 8787）
--db string             缓存数据库路径（默认 ~/.local/share/agent-session/index.db）
+-db string             缓存数据库路径（默认 ~/.local/share/agent-session-viewer/index.db）
 -claude-dir string     Claude projects 目录
 -codex-dir string      Codex sessions 目录
 -codex-index string    Codex session_index.jsonl 路径

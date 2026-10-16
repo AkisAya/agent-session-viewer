@@ -1,4 +1,5 @@
-/agent-session
+# 构建产物
+/asv
 *.db
 *.db-wal
 *.db-shm

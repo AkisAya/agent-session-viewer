@@ -5,7 +5,7 @@ package source
 import (
 	"time"
 
-	"github.com/akis/agent-session/internal/model"
+	"github.com/akisaya/agent-session-viewer/internal/model"
 )
 
 // Cursor tracks how far a source-specific resource (usually a file) has been

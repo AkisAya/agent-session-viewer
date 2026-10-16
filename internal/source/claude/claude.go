@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akis/agent-session/internal/model"
-	"github.com/akis/agent-session/internal/source"
+	"github.com/akisaya/agent-session-viewer/internal/model"
+	"github.com/akisaya/agent-session-viewer/internal/source"
 )
 
 // Source scans the Claude Code projects directory.

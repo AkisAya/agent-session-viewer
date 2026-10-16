@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/akis/agent-session/internal/index"
-	"github.com/akis/agent-session/internal/model"
+	"github.com/akisaya/agent-session-viewer/internal/index"
+	"github.com/akisaya/agent-session-viewer/internal/model"
 )
 
 // Server wires the index to HTTP handlers.

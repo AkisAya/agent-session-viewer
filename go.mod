@@ -1,4 +1,4 @@
-module github.com/akis/agent-session
+module github.com/akisaya/agent-session-viewer
 
 go 1.26.0
 

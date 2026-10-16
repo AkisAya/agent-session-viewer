@@ -33,7 +33,7 @@ func (c *Config) Resolve() {
 		c.Port = 8787
 	}
 	if c.DBPath == "" {
-		c.DBPath = filepath.Join(home, ".local", "share", "agent-session", "index.db")
+		c.DBPath = filepath.Join(home, ".local", "share", "agent-session-viewer", "index.db")
 	}
 	if c.ClaudeDir == "" {
 		c.ClaudeDir = filepath.Join(home, ".claude", "projects")

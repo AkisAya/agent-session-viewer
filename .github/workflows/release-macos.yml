@@ -24,7 +24,7 @@ jobs:
         run: |
           set -e
           mkdir -p build
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o build/agent-session .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o build/asv .
           # 确认生成的可执行文件存在
           ls -la build
 
@@ -32,7 +32,7 @@ jobs:
         run: |
           set -e
           cd build
-          tar -czf agent-session-macos-arm64-${{ github.ref_name }}.tar.gz agent-session
+          tar -czf asv-macos-arm64-${{ github.ref_name }}.tar.gz asv
           ls -la
 
       - name: Create GitHub Release
@@ -43,4 +43,4 @@ jobs:
           body: Compiler release for ${{ github.ref_name }}
           draft: false
           prerelease: false
-          artifacts: build/agent-session-macos-arm64-${{ github.ref_name }}.tar.gz
+          artifacts: build/asv-macos-arm64-${{ github.ref_name }}.tar.gz

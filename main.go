@@ -1,4 +1,4 @@
-// Command agent-session serves a local web UI over Claude Code, Codex and
+// Command asv serves a local web UI over Claude Code, Codex and
 // OpenCode conversation history.
 package main
 
@@ -12,14 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/akis/agent-session/internal/api"
-	"github.com/akis/agent-session/internal/config"
-	"github.com/akis/agent-session/internal/index"
-	"github.com/akis/agent-session/internal/source"
-	"github.com/akis/agent-session/internal/source/claude"
-	"github.com/akis/agent-session/internal/source/codex"
-	"github.com/akis/agent-session/internal/source/opencode"
-	"github.com/akis/agent-session/web"
+	"github.com/akisaya/agent-session-viewer/internal/api"
+	"github.com/akisaya/agent-session-viewer/internal/config"
+	"github.com/akisaya/agent-session-viewer/internal/index"
+	"github.com/akisaya/agent-session-viewer/internal/source"
+	"github.com/akisaya/agent-session-viewer/internal/source/claude"
+	"github.com/akisaya/agent-session-viewer/internal/source/codex"
+	"github.com/akisaya/agent-session-viewer/internal/source/opencode"
+	"github.com/akisaya/agent-session-viewer/web"
 )
 
 func main() {
