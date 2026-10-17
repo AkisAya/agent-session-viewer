@@ -86,6 +86,9 @@ type Source interface {
 	// since the provided cursors. It returns the full set of cursors it saw
 	// (including unchanged ones) so the index can prune deleted sessions.
 	Scan(prev map[string]Cursor, emit func(Delta)) (map[string]Cursor, error)
-	// Transcript returns the full conversation for a session id.
-	Transcript(id string) ([]model.Message, error)
+	// Transcript returns the full conversation for a session id. hints are the
+	// resources (file paths) the index recorded for that session; a source may
+	// use them to open the transcript directly instead of searching the tree,
+	// and must fall back to a search when they are missing or stale.
+	Transcript(id string, hints []string) ([]model.Message, error)
 }

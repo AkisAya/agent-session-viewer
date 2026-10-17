@@ -47,10 +47,33 @@ func ReadNewLines(path string, offset int64) (lines [][]byte, newOffset int64, e
 	return lines, newOffset, nil
 }
 
-// ReadAllLines reads every complete line of a file.
-func ReadAllLines(path string) ([][]byte, error) {
-	lines, _, err := ReadNewLines(path, 0)
-	return lines, err
+// ForEachLine streams a file line by line, without holding the whole file in
+// memory. It yields every non-blank line (including a final, unterminated one).
+func ForEachLine(path string, fn func(line []byte) error) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	br := bufio.NewReaderSize(f, 1<<20)
+	for {
+		line, rerr := br.ReadBytes('\n')
+		if len(line) > 0 {
+			trimmed := bytes.TrimRight(line, "\r\n")
+			if len(bytes.TrimSpace(trimmed)) > 0 {
+				if err := fn(trimmed); err != nil {
+					return err
+				}
+			}
+		}
+		if rerr != nil {
+			if rerr == io.EOF {
+				return nil
+			}
+			return rerr
+		}
+	}
 }
 
 // FirstText returns the first non-empty string among the candidates.

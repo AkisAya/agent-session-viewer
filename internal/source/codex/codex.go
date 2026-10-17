@@ -364,48 +364,47 @@ func (s *Source) loadIndex() map[string]string {
 
 // Transcript loads the full conversation for a session id. A session may span
 // multiple rollout files (resumed sessions), so all matching files are merged
-// in timestamp order.
-func (s *Source) Transcript(id string) ([]model.Message, error) {
-	paths, err := s.find(id)
-	if err != nil {
-		return nil, err
+// in timestamp order. hints are the rollout paths the index recorded.
+func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) {
+	paths := s.locateAll(id, hints)
+	if len(paths) == 0 {
+		return nil, os.ErrNotExist
 	}
 	var evOut, respOut []model.Message
 	for _, path := range paths {
-		lines, err := source.ReadAllLines(path)
-		if err != nil {
-			continue
-		}
-		for _, raw := range lines {
+		err := source.ForEachLine(path, func(raw []byte) error {
 			var l line
 			if json.Unmarshal(raw, &l) != nil {
-				continue
+				return nil
 			}
 			ts := parseTime(l.Timestamp)
 			switch l.Type {
 			case "event_msg":
 				var ev eventMsg
 				if json.Unmarshal(l.Payload, &ev) != nil || ev.Type != "item_completed" || ev.Item == nil {
-					continue
+					return nil
 				}
-				role, text := codexItemMessage(ev.Item)
-				if text != "" {
+				if role, text := codexItemMessage(ev.Item); text != "" {
 					evOut = append(evOut, model.Message{Role: role, Text: text, Timestamp: ts})
 				}
 			case "response_item":
 				var ri responseItem
 				if json.Unmarshal(l.Payload, &ri) != nil || ri.Type != "message" {
-					continue
+					return nil
 				}
 				if ri.Role != "user" && ri.Role != "assistant" {
-					continue
+					return nil
 				}
 				text := respText(&ri)
 				if text == "" || (ri.Role == "user" && isSynthetic(text)) {
-					continue
+					return nil
 				}
 				respOut = append(respOut, model.Message{Role: ri.Role, Text: text, Timestamp: ts})
 			}
+			return nil
+		})
+		if err != nil {
+			continue
 		}
 	}
 	out := evOut
@@ -414,6 +413,28 @@ func (s *Source) Transcript(id string) ([]model.Message, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Timestamp.Before(out[j].Timestamp) })
 	return out, nil
+}
+
+// locateAll resolves the rollout files of a session, preferring the paths the
+// index already recorded and falling back to a tree walk.
+func (s *Source) locateAll(id string, hints []string) []string {
+	var found []string
+	for _, h := range hints {
+		if idFromName(filepath.Base(h)) == id {
+			if _, err := os.Stat(h); err == nil {
+				found = append(found, h)
+			}
+		}
+	}
+	if len(found) == 0 {
+		paths, err := s.find(id)
+		if err != nil {
+			return nil
+		}
+		return paths
+	}
+	sort.Strings(found)
+	return found
 }
 
 // codexItemMessage maps an event item to a display role and text.

@@ -79,7 +79,7 @@ func TestScan(t *testing.T) {
 
 func TestTranscript(t *testing.T) {
 	src := &Source{Path: buildDB(t)}
-	msgs, err := src.Transcript("s1")
+	msgs, err := src.Transcript("s1", nil)
 	if err != nil {
 		t.Fatalf("transcript: %v", err)
 	}
@@ -97,5 +97,50 @@ func TestTranscript(t *testing.T) {
 		if msgs[i].Role != w.role || msgs[i].Text != w.text {
 			t.Fatalf("msg[%d] = %+v, want %+v", i, msgs[i], w)
 		}
+	}
+}
+
+// An unchanged session table must make the second scan emit nothing while
+// still reporting every live session; a change must bring the deltas back.
+func TestScanWatermarkSkipsUnchanged(t *testing.T) {
+	path := buildDB(t)
+	src := &Source{Path: path}
+
+	first, err := src.Scan(nil, func(source.Delta) {})
+	if err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	emitted := 0
+	second, err := src.Scan(first, func(source.Delta) { emitted++ })
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	if emitted != 0 {
+		t.Fatalf("unchanged rescan emitted %d deltas, want 0", emitted)
+	}
+	if _, ok := second["s1"]; !ok {
+		t.Fatalf("fast path dropped the live session id: %+v", second)
+	}
+
+	// Change the session: add a message and bump its update time.
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO session_message VALUES ('s1','assistant','{"content":[{"type":"text","text":"more"}]}',3,1735725610000)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE session_v2 SET time_updated = 1735729210000 WHERE id='s1'`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	emitted = 0
+	if _, err := src.Scan(second, func(source.Delta) { emitted++ }); err != nil {
+		t.Fatalf("third scan: %v", err)
+	}
+	if emitted != 1 {
+		t.Fatalf("after a change, emitted %d deltas, want 1", emitted)
 	}
 }

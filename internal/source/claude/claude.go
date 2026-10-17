@@ -284,27 +284,23 @@ func contentText(raw json.RawMessage) string {
 
 // Transcript loads the full conversation for a session id, emitting separate
 // messages for user/assistant text, model reasoning and tool calls.
-func (s *Source) Transcript(id string) ([]model.Message, error) {
-	path, err := s.find(id)
-	if err != nil {
-		return nil, err
-	}
-	lines, err := source.ReadAllLines(path)
+func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) {
+	path, err := s.locate(id, hints)
 	if err != nil {
 		return nil, err
 	}
 	var out []model.Message
-	for _, raw := range lines {
+	err = source.ForEachLine(path, func(raw []byte) error {
 		var e entry
 		if json.Unmarshal(raw, &e) != nil {
-			continue
+			return nil
 		}
 		if (e.Type != "user" && e.Type != "assistant") || e.IsSidechain {
-			continue
+			return nil
 		}
 		var m message
 		if json.Unmarshal(e.Message, &m) != nil {
-			continue
+			return nil
 		}
 		ts := parseTime(e.Timestamp)
 		if content := blocksOf(m.Content); content != nil {
@@ -314,13 +310,31 @@ func (s *Source) Transcript(id string) ([]model.Message, error) {
 					out = append(out, model.Message{Role: role, Text: text, Timestamp: ts})
 				}
 			}
-			continue
+			return nil
 		}
 		if text := contentText(m.Content); text != "" {
 			out = append(out, model.Message{Role: e.Type, Text: text, Timestamp: ts})
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
+}
+
+// locate returns the transcript file, preferring a path the index already
+// recorded so the projects tree is not walked for every open.
+func (s *Source) locate(id string, hints []string) (string, error) {
+	want := id + ".jsonl"
+	for _, h := range hints {
+		if filepath.Base(h) == want {
+			if _, err := os.Stat(h); err == nil {
+				return h, nil
+			}
+		}
+	}
+	return s.find(id)
 }
 
 // blocksOf returns the content blocks when content is an array, else nil.

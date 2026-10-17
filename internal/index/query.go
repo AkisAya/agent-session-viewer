@@ -467,7 +467,30 @@ func (ix *Index) Transcript(agent, id string) ([]model.Message, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown agent %q", agent)
 	}
-	return src.Transcript(id)
+	hints, err := ix.sourcesFor(agent, id)
+	if err != nil {
+		return nil, err
+	}
+	return src.Transcript(id, hints)
+}
+
+// sourcesFor returns the resources the index recorded for a session, letting a
+// source open the transcript without searching the filesystem.
+func (ix *Index) sourcesFor(agent, id string) ([]string, error) {
+	rows, err := ix.db.Query(`SELECT src FROM session_usage WHERE agent = ? AND id = ?`, agent, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var src string
+		if err := rows.Scan(&src); err != nil {
+			return nil, err
+		}
+		out = append(out, src)
+	}
+	return out, rows.Err()
 }
 
 // LastScan reports when the last successful scan finished.

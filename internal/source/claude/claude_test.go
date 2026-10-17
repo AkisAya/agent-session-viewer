@@ -34,7 +34,7 @@ func TestTranscriptRoles(t *testing.T) {
 		// A sidechain turn belongs to a sub-agent, not the visible conversation.
 		`{"type":"user","timestamp":"2026-01-01T12:00:06Z","sessionId":"sess-1","isSidechain":true,"message":{"role":"user","content":"sidechain noise"}}`)
 
-	msgs, err := (&Source{Root: root}).Transcript("sess-1")
+	msgs, err := (&Source{Root: root}).Transcript("sess-1", nil)
 	if err != nil {
 		t.Fatalf("transcript: %v", err)
 	}
@@ -76,5 +76,25 @@ func TestScanEmitsNormalizedTools(t *testing.T) {
 	}
 	if d.Tools.Counts["shell"] != 1 || d.Tools.Counts["mcp:github.create_issue"] != 1 {
 		t.Fatalf("tools = %+v, want normalized shell + mcp", d.Tools)
+	}
+}
+
+// A path hint from the index must be used directly: the file here lives
+// outside the projects root, so only the hint can locate it.
+func TestTranscriptUsesHint(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sess-9.jsonl")
+	if err := os.WriteFile(path,
+		[]byte(`{"type":"user","timestamp":"2026-01-01T12:00:00Z","sessionId":"sess-9","message":{"role":"user","content":"from hint"}}`+"\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, err := (&Source{Root: filepath.Join(dir, "empty-root")}).Transcript("sess-9", []string{path})
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].Text != "from hint" {
+		t.Fatalf("transcript = %+v, want the hinted file", msgs)
 	}
 }

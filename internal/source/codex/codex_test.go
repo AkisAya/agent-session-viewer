@@ -42,7 +42,7 @@ func TestTranscriptMergesRolloutFiles(t *testing.T) {
 		`{"type":"session_meta","timestamp":"2026-02-02T11:00:00Z","payload":{"session_id":"`+testID+`","cwd":"/tmp/q"}}`,
 		`{"type":"event_msg","timestamp":"2026-02-02T11:00:05Z","payload":{"type":"item_completed","item":{"type":"AgentMessage","content":[{"text":"second"}]}}}`)
 
-	msgs, err := (&Source{Root: dir}).Transcript(testID)
+	msgs, err := (&Source{Root: dir}).Transcript(testID, nil)
 	if err != nil {
 		t.Fatalf("transcript: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestTranscriptFallsBackToResponseItems(t *testing.T) {
 		`{"type":"response_item","timestamp":"2026-02-01T11:00:02Z","payload":{"type":"message","role":"user","content":[{"type":"text","text":"real question"}]}}`,
 		`{"type":"response_item","timestamp":"2026-02-01T11:00:03Z","payload":{"type":"message","role":"assistant","content":[{"type":"text","text":"answer"}]}}`)
 
-	msgs, err := (&Source{Root: dir}).Transcript(testID)
+	msgs, err := (&Source{Root: dir}).Transcript(testID, nil)
 	if err != nil {
 		t.Fatalf("transcript: %v", err)
 	}

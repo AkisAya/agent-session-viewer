@@ -25,10 +25,16 @@ func fold(t *testing.T, ix *Index, agent string, d source.Delta) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	if err := applyActivity(tx, agent, d); err != nil {
+	defer tx.Rollback()
+	w, err := newWriter(tx)
+	if err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+	defer w.close()
+	if err := w.applyActivity(agent, d); err != nil {
 		t.Fatalf("applyActivity: %v", err)
 	}
-	if err := applyTools(tx, agent, d); err != nil {
+	if err := w.applyTools(agent, d); err != nil {
 		t.Fatalf("applyTools: %v", err)
 	}
 	if err := tx.Commit(); err != nil {

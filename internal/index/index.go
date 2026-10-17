@@ -214,14 +214,14 @@ func (ix *Index) scanSource(src source.Source) error {
 	}
 	defer tx.Rollback()
 
+	w, err := newWriter(tx)
+	if err != nil {
+		return err
+	}
+	defer w.close()
+
 	for _, d := range deltas {
-		if err := applyDelta(tx, agent, d); err != nil {
-			return err
-		}
-		if err := applyActivity(tx, agent, d); err != nil {
-			return err
-		}
-		if err := applyTools(tx, agent, d); err != nil {
+		if err := w.apply(agent, d); err != nil {
 			return err
 		}
 	}
