@@ -61,22 +61,29 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # Full history + tags so the notes can find the previous stable tag.
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
+      - name: Build release notes from CHANGELOG.md
+        run: |
+          set -e
+          ./scripts/release-notes.sh "${GITHUB_REF_NAME}" | tee release-body.md
+
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: |
-            Prebuilt `asv` binaries for `${{ github.ref_name }}`.
-
-            Download the archive for your platform, extract it, and run `asv`.
-            See the README for the command-line flags.
+          bodyFile: release-body.md
           draft: false
           # A tag like v0.3.0-rc1 is a prerelease and must not become "latest".
           prerelease: ${{ contains(github.ref_name, '-') }}

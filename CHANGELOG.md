@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **发布说明自动化**：`release.yml` 改为用 `scripts/release-notes.sh` 从 `CHANGELOG.md` 抽取当前 tag 的版本段落作为 Release 正文，并附 `**Full changelog:** <上一个稳定 tag>...<当前 tag>` 的 compare 链接（rc tag 若还没有自己的段落则回退到 `Unreleased`）。
+
 ## [0.3.0] - 2026-10-17
 
 ### Added

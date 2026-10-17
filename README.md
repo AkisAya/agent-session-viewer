@@ -68,6 +68,7 @@ internal/index          缓存数据库 + 增量扫描编排（index.go 生命�
 internal/api            HTTP API
 web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块
 web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
+scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段落，附与上一个稳定 tag 的 compare 链接
 ```
 
 ## API
