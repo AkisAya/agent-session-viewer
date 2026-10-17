@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/akisaya/agent-session-viewer/internal/source"
-
-	_ "modernc.org/sqlite"
+	"github.com/akisaya/agent-session-viewer/internal/sqlite"
 )
 
 // Index owns the cache database and the set of sources.
@@ -105,7 +104,8 @@ CREATE INDEX IF NOT EXISTS session_usage_src_idx ON session_usage(agent, src);
 
 // Options configures how the cache is stored.
 type Options struct {
-	// Path is the on-disk SQLite database. Ignored when Memory is set.
+	// Path is the on-disk SQLite database. Ignored when Memory is set, and on
+	// js/wasm, where no file-backed SQLite VFS exists.
 	Path string
 	// Memory keeps the cache in an in-memory SQLite database: nothing is
 	// written to disk and the index is rebuilt with a full scan on every start.
@@ -115,7 +115,7 @@ type Options struct {
 // Open creates/opens the cache database and registers the sources.
 func Open(opts Options, sources ...source.Source) (*Index, error) {
 	var dsn string
-	if opts.Memory {
+	if opts.Memory || sqlite.MemoryOnly {
 		// A named shared in-memory database: every pooled connection sees the
 		// same data, and the database lives as long as this process holds a
 		// connection open. No WAL/synchronous pragmas — they are meaningless
@@ -127,7 +127,7 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 		}
 		dsn = fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)", opts.Path)
 	}
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open(sqlite.Driver, dsn)
 	if err != nil {
 		return nil, err
 	}

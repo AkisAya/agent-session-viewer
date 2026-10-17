@@ -13,14 +13,12 @@ package opencode
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/akisaya/agent-session-viewer/internal/model"
 	"github.com/akisaya/agent-session-viewer/internal/source"
-
-	_ "modernc.org/sqlite"
+	"github.com/akisaya/agent-session-viewer/internal/sqlite"
 )
 
 // Source reads the OpenCode SQLite database.
@@ -31,8 +29,7 @@ type Source struct {
 func (s *Source) Name() string { return "opencode" }
 
 func (s *Source) open() (*sql.DB, error) {
-	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", s.Path)
-	return sql.Open("sqlite", dsn)
+	return sqlite.OpenRead(s.Path)
 }
 
 // watermarkKey is a reserved cursor entry holding a cheap fingerprint of the

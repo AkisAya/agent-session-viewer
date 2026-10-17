@@ -6,14 +6,20 @@ import (
 	"testing"
 
 	"github.com/akisaya/agent-session-viewer/internal/source"
+	"github.com/akisaya/agent-session-viewer/internal/sqlite"
 )
 
 // buildDB creates a minimal OpenCode-shaped database with one current-format
 // session so Scan and Transcript can be exercised end to end.
+//
+// The database is built with the platform's own driver, so this only runs
+// natively: under js/wasm there is no way to *create* a database file at all
+// (see internal/sqlite). Writing "sqlite" here instead would silently depend on
+// a driver another package happens to register.
 func buildDB(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "opencode.db")
-	db, err := sql.Open("sqlite", "file:"+path)
+	db, err := sql.Open(sqlite.Driver, "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
