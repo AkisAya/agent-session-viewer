@@ -6,9 +6,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **js/wasm 端到端对拍**：`internal/wasmtest` 用一份固定固件（Claude / Codex / OpenCode 三个来源，含跨 rollout 文件的续接会话、子代理与分叉）跑完整流水线并把结果渲染成稳定文本，与 `testdata/golden.txt` 逐字节比对；同一份测试在原生与 wasm 下各跑一次，CI 新增 `wasm` 作业执行后者。
+- **浏览器 harness**：`internal/wasmtest/browser/` 用 `vfs.js` 把内存文件系统装到 `globalThis.fs`（在 `wasm_exec.js` 之前），于是 Go 侧零改动即可在浏览器里跑真实扫描与查询；页面把输出与 golden 对比并显示结论。`build.sh` 负责组装，`dist/` 不入库。
+- **`internal/sqlite`**：按平台选择 SQLite 驱动——原生 `modernc.org/sqlite` 不变，wasm 用 `ncruces/go-sqlite3`（wazero 里跑官方 SQLite）。同时收编「打开数据库」这一唯一不可移植的操作：原生按路径只读打开，wasm 把文件字节挂进内存 VFS。
+- `cmd/wasmcheck`：手动跑一遍完整流水线并打印结果与耗时，原生 / Node / 浏览器通用，默认自带固件、`-home` 可指向真实数据目录。
+
 ### Changed
 
 - **发布说明自动化**：`release.yml` 改为用 `scripts/release-notes.sh` 从 `CHANGELOG.md` 抽取当前 tag 的版本段落作为 Release 正文，并附 `**Full changelog:** <上一个稳定 tag>...<当前 tag>` 的 compare 链接（rc tag 若还没有自己的段落则回退到 `Unreleased`）。
+- **wasm 下索引强制内存**：js/wasm 没有 mmap，SQLite 的文件 VFS 无法打开任何数据库，因此 `index.Open` 在 wasm 下忽略 `Path`，一律使用内存库。
 
 ## [0.3.0] - 2026-10-17
 

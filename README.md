@@ -64,12 +64,44 @@ internal/source         数据源接口与增量 Delta 定义
 internal/source/claude  Claude Code 解析
 internal/source/codex   Codex 解析（跨 rollout 文件合并对话）
 internal/source/opencode OpenCode SQLite 解析
+internal/sqlite         按平台选择 SQLite 驱动（原生 modernc，wasm 用 ncruces）
 internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API）
 internal/api            HTTP API
+internal/wasmtest       js/wasm 端到端对拍：固定固件 + 期望输出（golden）
+internal/wasmtest/browser 浏览器 harness：内存文件系统 + 在浏览器里跑真实流水线
+cmd/wasmcheck           手动跑一遍完整流水线并打印结果（原生 / Node / 浏览器通用）
 web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块
 web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
 scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段落，附与上一个稳定 tag 的 compare 链接
 ```
+
+## 在浏览器里运行（WASM，验证中）
+
+整条流水线可以编到 `js/wasm` 跑，parser / 索引 / 查询代码零改动——平台差异全部收在 `internal/sqlite` 里：原生仍用 `modernc.org/sqlite`，wasm 用 `ncruces/go-sqlite3`（wazero 里跑官方 SQLite，因此与 `GOOS` 无关）。
+
+```bash
+# 1) 端到端对拍：原生与 wasm 必须给出逐字节相同的输出
+go test ./internal/wasmtest/
+GOOS=js GOARCH=wasm go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./internal/wasmtest/
+
+# 2) 手动跑一遍（默认自带固件；-home 可指向真实 ~）
+go run ./cmd/wasmcheck
+GOOS=js GOARCH=wasm go build -o /tmp/wasmcheck.wasm ./cmd/wasmcheck
+node "$(go env GOROOT)/lib/wasm/wasm_exec_node.js" /tmp/wasmcheck.wasm
+
+# 3) 真·浏览器
+./internal/wasmtest/browser/build.sh
+python3 -m http.server -d internal/wasmtest/browser/dist 8000
+```
+
+浏览器里没有 fs。`internal/wasmtest/browser/vfs.js` 在加载 `wasm_exec.js` **之前**把一个内存文件系统装到 `globalThis.fs` 上（`wasm_exec.js` 只在 `globalThis.fs` 缺失时才装它自己的空桩），Go 侧同样零改动。
+
+两条限制：
+
+- **索引只放内存**：js/wasm 没有 mmap，SQLite 的文件 VFS 打不开任何东西，所以 wasm 下 `index.Open` 一律走内存库，页面刷新即重建。
+- **OpenCode 读的是快照**：它的 `.db` 是 WAL 模式，挂进内存库时只看得到最近一次 checkpoint 的内容（实测约 0.6% 的消息还在 `-wal` 里读不到）。
+
+方案、全部实测数据与未验证项见 [docs/wasm.md](docs/wasm.md)。
 
 ## API
 
