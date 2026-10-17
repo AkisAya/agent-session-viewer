@@ -11,6 +11,8 @@
 - `-version` 参数，发布产物通过 `-ldflags -X main.version=...` 注入版本号。
 - **测试护栏**：「全量解析 == 逐次增量解析」的等价测试，覆盖 Claude 与 Codex 解析器，附带多文件会话、跨 agent 关联、各 parser 的 Transcript 等用例；CI 工作流执行 `gofmt` / `go vet` / `go test -race`。
 - **多平台发布**：发布 macOS arm64 与 Linux amd64 产物，`CGO_ENABLED=0` 纯静态构建。Windows 暂不发布：默认数据路径是 unix 风格（`~/.local/share/...`），需先按平台适配。
+- **前端错误提示**：请求失败时在底部弹出提示（优先展示服务端返回的 `error` 文本），不再静默失败；看板单个面板失败时保留上一次数据，不再整体清空。
+- **前端资产护栏**：测试校验 `index.html` 引用的资源与各模块的相对 `import` 均存在于 `//go:embed` 的 `web.FS` 中，避免漏加文件只在浏览器里才报错。
 
 ### Changed
 
@@ -18,6 +20,7 @@
 - **Delta 模型重构**：用 `Counter` / `Usage` / `Amount` / `Histogram` 四个带语义的类型取代原先散落的多个 `*Absolute` 布尔标志，来源只需声明「整文件覆盖」或「增量累加」。
 - **按来源累计用量**：消息数 / Token / 花费改为按 `(agent, 会话, 来源文件)` 存于 `session_usage`，会话行由各来源求和；修复横跨多个 rollout 文件的 Codex 续接会话 token 被后一个文件覆盖的问题。
 - **`index` 包拆分**：930 行的单文件拆为生命周期/扫描、写侧、读侧三部分。
+- **前端拆分**：1239 行的单文件 `app.js` 拆成原生 ES 模块——`util`（格式化/转义/剪贴板/提示）、`state`（状态、URL 同步、主题）、`api`（HTTP 客户端，失败时抛出可展示的错误）与 `list` / `dashboard` / `projects` / `stats` / `detail` 视图模块；仍是零构建，由 Go 直接内嵌分发。
 - **性能**：正文用索引记录的来源路径直接定位并逐行流式读取；写侧改用预编译语句与单条 upsert；OpenCode 在会话表未变化时跳过全部逐消息扫描。
 - **关联会话匹配**：父/子匹配改为按 `(agent, id)` 成对比较，避免不同 agent 复用同一 id 时串链。
 
