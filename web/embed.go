@@ -4,5 +4,8 @@ import "embed"
 
 // FS holds the embedded static frontend assets.
 //
-//go:embed index.html app.js md.js style.css logo.svg
+// The frontend is plain ES modules (no build step): app.js imports the other
+// *.js modules, which the browser fetches from this same embedded FS.
+//
+//go:embed index.html *.js style.css logo.svg
 var FS embed.FS
