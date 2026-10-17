@@ -10,7 +10,7 @@
 
 - `-version` 参数，发布产物通过 `-ldflags -X main.version=...` 注入版本号。
 - **测试护栏**：「全量解析 == 逐次增量解析」的等价测试，覆盖 Claude 与 Codex 解析器，附带多文件会话、跨 agent 关联、各 parser 的 Transcript 等用例；CI 工作流执行 `gofmt` / `go vet` / `go test -race`。
-- **多平台发布**：发布矩阵扩展到 macOS 与 Linux 的 arm64 / amd64，`CGO_ENABLED=0` 纯静态构建。Windows 暂不发布：默认数据路径是 unix 风格（`~/.local/share/...`），需先按平台适配。
+- **多平台发布**：发布 macOS arm64 与 Linux amd64 产物，`CGO_ENABLED=0` 纯静态构建。Windows 暂不发布：默认数据路径是 unix 风格（`~/.local/share/...`），需先按平台适配。
 
 ### Changed
 
