@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -23,8 +24,14 @@ import (
 	"github.com/akisaya/agent-session-viewer/web"
 )
 
+// version is overridden at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
-	var cfg config.Config
+	var (
+		cfg         config.Config
+		showVersion bool
+	)
 	flag.StringVar(&cfg.Host, "host", "", "HTTP bind address (default 127.0.0.1; use 0.0.0.0 to expose to the network)")
 	flag.IntVar(&cfg.Port, "port", 0, "HTTP port (default 8787)")
 	flag.StringVar(&cfg.DBPath, "db", "", "cache database path")
@@ -34,7 +41,12 @@ func main() {
 	flag.StringVar(&cfg.OpenCodeDB, "opencode-db", "", "OpenCode SQLite database")
 	flag.IntVar(&cfg.WatchSeconds, "watch-interval", 0, "rescan every N seconds (0 = only on demand)")
 	flag.BoolVar(&cfg.Memory, "memory", false, "keep the index in memory instead of a SQLite file (full rescan on every start)")
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
+	if showVersion {
+		fmt.Println("asv " + version)
+		return
+	}
 	cfg.Resolve()
 
 	sources := []source.Source{

@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -e
+          ext=""
+          [ "$GOOS" = "windows" ] && ext=".exe"
+          go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o "build/asv${ext}" .
+
+      - name: Archive
+        run: |
+          set -e
+          name="asv-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}"
+          cd build
+          tar -czf "../${name}.tar.gz" asv*
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asv-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ./*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: Compiler release for ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          artifacts: "artifacts/*"
