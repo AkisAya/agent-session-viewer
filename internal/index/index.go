@@ -87,6 +87,18 @@ CREATE TABLE IF NOT EXISTS tool_use (
   cnt   INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, id, src, tool)
 );
+
+-- session_source maps a session to every backing resource (file) that
+-- contributed to it. A Codex session may span several rollout files, so
+-- membership -- not a single source_path -- decides whether a session is
+-- still alive.
+CREATE TABLE IF NOT EXISTS session_source (
+  agent TEXT NOT NULL,
+  id    TEXT NOT NULL,
+  src   TEXT NOT NULL,
+  PRIMARY KEY (agent, id, src)
+);
+CREATE INDEX IF NOT EXISTS session_source_src_idx ON session_source(agent, src);
 `
 
 // Options configures how the cache is stored.
@@ -132,8 +144,9 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	// Bump when the parsing/extraction changes in a way that requires a full
 	// re-scan (cursors are invalidated so every source is re-read once).
 	// v4: activity/tool histograms + parent links; v5: MultiEdit alias fix;
-	// v6: OpenCode parent_id relabelled as "subagent" (was "fork").
-	const schemaVersion = "6"
+	// v6: OpenCode parent_id relabelled as "subagent" (was "fork");
+	// v7: session_source membership table (multi-file session pruning).
+	const schemaVersion = "7"
 	var ver string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&ver)
 	if ver != schemaVersion {
@@ -141,6 +154,7 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 		_, _ = db.Exec(`DELETE FROM session`)
 		_, _ = db.Exec(`DELETE FROM activity`)
 		_, _ = db.Exec(`DELETE FROM tool_use`)
+		_, _ = db.Exec(`DELETE FROM session_source`)
 		_, _ = db.Exec(`INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)`, schemaVersion)
 	}
 	ix := &Index{db: db, sources: sources, byName: map[string]source.Source{}}
@@ -224,6 +238,9 @@ func (ix *Index) scanSource(src source.Source) error {
 		}
 	}
 
+	// Drop the resources that disappeared, then any session left without a
+	// backing resource. Membership (not a single source_path) decides this, so
+	// a session spanning several files survives the loss of just one.
 	keys := make([]any, 0, len(next)+1)
 	keys = append(keys, agent)
 	placeholders := make([]string, 0, len(next))
@@ -231,23 +248,22 @@ func (ix *Index) scanSource(src source.Source) error {
 		placeholders = append(placeholders, "?")
 		keys = append(keys, k)
 	}
-	q := `DELETE FROM session WHERE agent = ?`
+	inSrc := ""
 	if len(placeholders) > 0 {
-		q += ` AND source_path NOT IN (` + strings.Join(placeholders, ",") + `)`
+		inSrc = ` AND src NOT IN (` + strings.Join(placeholders, ",") + `)`
 	}
-	if _, err := tx.Exec(q, keys...); err != nil {
+	if _, err := tx.Exec(`DELETE FROM session_source WHERE agent = ?`+inSrc, keys...); err != nil {
 		return err
 	}
-	// Histograms of disappeared source files (or pruned sessions) would
-	// otherwise leak forever.
+	// Histograms of disappeared source files would otherwise leak forever.
 	for _, table := range []string{"activity", "tool_use"} {
-		stmt := `DELETE FROM ` + table + ` WHERE agent = ?`
-		if len(placeholders) > 0 {
-			stmt += ` AND src NOT IN (` + strings.Join(placeholders, ",") + `)`
-		}
-		if _, err := tx.Exec(stmt, keys...); err != nil {
+		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE agent = ?`+inSrc, keys...); err != nil {
 			return err
 		}
+	}
+	if _, err := tx.Exec(`DELETE FROM session WHERE agent = ? AND id NOT IN (
+		SELECT id FROM session_source WHERE agent = ?)`, agent, agent); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -347,7 +363,16 @@ func applyDelta(tx *sql.Tx, agent string, d source.Delta) error {
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		agent, d.ID, r.title, r.preview, r.cwd, r.model, r.created, r.updated,
 		r.msg, r.tin, r.tout, r.cache, r.cost, d.Key, r.parent, r.relation)
-	return err
+	if err != nil {
+		return err
+	}
+	if d.Key != "" {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO session_source(agent,id,src) VALUES(?,?,?)`,
+			agent, d.ID, d.Key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // applyActivity folds a delta's per-day message histogram into the activity
@@ -744,8 +769,11 @@ func (ix *Index) Tools(agent, cwd string, limit int) (model.ToolStats, error) {
 func (ix *Index) Relations(agent, cwd string) ([]model.Session, error) {
 	where, args := scopeWhere(agent, cwd)
 	// Only sessions that take part in a link: those carrying a parent, and
-	// those referenced as a parent by another session.
-	const linked = ` AND (parent_id <> '' OR id IN (SELECT parent_id FROM session WHERE parent_id <> ''))`
+	// those referenced as a parent by another session of the same agent.
+	// Session identity is (agent, id), so every lookup below matches on the
+	// pair -- otherwise an id reused by another agent would cross-link.
+	const linked = ` AND (s.parent_id <> '' OR EXISTS (
+		SELECT 1 FROM session c WHERE c.agent = s.agent AND c.parent_id = s.id))`
 	base, err := ix.selectSessions(`SELECT `+sessionCols+` FROM session s WHERE `+where+linked, args)
 	if err != nil || len(base) == 0 {
 		return base, err
@@ -757,21 +785,14 @@ func (ix *Index) Relations(agent, cwd string) ([]model.Session, error) {
 		seen[s.Agent+"|"+s.ID] = true
 	}
 
-	// Parents referenced by the matched set.
-	var parentIDs []string
+	// Parents referenced by the matched set, and children pointing back at it.
+	var parents, children [][2]string
 	for _, s := range base {
 		if s.ParentID != "" {
-			parentIDs = append(parentIDs, s.ParentID)
+			parents = append(parents, [2]string{s.Agent, s.ParentID})
 		}
+		children = append(children, [2]string{s.Agent, s.ID})
 	}
-	// Children pointing at the matched set.
-	ph := make([]string, 0, len(base))
-	childArgs := []any{}
-	for _, s := range base {
-		ph = append(ph, "?")
-		childArgs = append(childArgs, s.ID)
-	}
-	childWhere := `parent_id IN (` + strings.Join(ph, ",") + `)`
 
 	fill := func(cond string, condArgs []any) error {
 		return ix.eachSession(`SELECT `+sessionCols+` FROM session WHERE `+cond, condArgs, func(s model.Session) {
@@ -782,21 +803,34 @@ func (ix *Index) Relations(agent, cwd string) ([]model.Session, error) {
 			}
 		})
 	}
-	if len(parentIDs) > 0 {
-		pp := make([]string, 0, len(parentIDs))
-		pArgs := []any{}
-		for _, id := range parentIDs {
-			pp = append(pp, "?")
-			pArgs = append(pArgs, id)
-		}
-		if err := fill(`id IN (`+strings.Join(pp, ",")+`)`, pArgs); err != nil {
+	if len(parents) > 0 {
+		cond, condArgs := pairClause("agent", "id", parents)
+		if err := fill(cond, condArgs); err != nil {
 			return nil, err
 		}
 	}
-	if err := fill(childWhere, childArgs); err != nil {
+	cond, condArgs := pairClause("agent", "parent_id", children)
+	if err := fill(cond, condArgs); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// pairClause builds "(lhs = ? AND rhs = ?) OR (...)" for a set of
+// (agent, id) pairs, deduplicated so the clause stays small.
+func pairClause(lhs, rhs string, pairs [][2]string) (string, []any) {
+	seen := map[[2]string]bool{}
+	conds := make([]string, 0, len(pairs))
+	args := make([]any, 0, len(pairs)*2)
+	for _, p := range pairs {
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		conds = append(conds, "("+lhs+" = ? AND "+rhs+" = ?)")
+		args = append(args, p[0], p[1])
+	}
+	return strings.Join(conds, " OR "), args
 }
 
 // sessionCols is the column list behind model.Session.

@@ -9,6 +9,7 @@ import (
 // Config holds runtime options. Zero-value fields are filled with defaults
 // by Resolve.
 type Config struct {
+	Host         string
 	Port         int
 	DBPath       string
 	ClaudeDir    string
@@ -30,6 +31,12 @@ func Home() string {
 // Resolve fills empty fields with sensible defaults.
 func (c *Config) Resolve() {
 	home := Home()
+	if c.Host == "" {
+		// Loopback by default: the tool exposes the full local conversation
+		// history, so it must not be reachable from the network unless the
+		// user opts in with -host.
+		c.Host = "127.0.0.1"
+	}
 	if c.Port == 0 {
 		c.Port = 8787
 	}

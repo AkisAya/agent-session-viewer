@@ -5,10 +5,11 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 
 func main() {
 	var cfg config.Config
+	flag.StringVar(&cfg.Host, "host", "", "HTTP bind address (default 127.0.0.1; use 0.0.0.0 to expose to the network)")
 	flag.IntVar(&cfg.Port, "port", 0, "HTTP port (default 8787)")
 	flag.StringVar(&cfg.DBPath, "db", "", "cache database path")
 	flag.StringVar(&cfg.ClaudeDir, "claude-dir", "", "Claude Code projects directory")
@@ -78,7 +80,7 @@ func main() {
 		}()
 	}
 
-	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: api.New(ix, web.FS)}
+	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -86,7 +88,7 @@ func main() {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("listening on http://localhost:%d", cfg.Port)
+	log.Printf("listening on http://%s", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server: %v", err)
 	}
