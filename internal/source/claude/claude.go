@@ -214,7 +214,12 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	if d.Title == "" && full {
 		d.Title = source.Truncate(firstUser, 80)
 	}
-	d.Preview = source.Truncate(firstUser, 200)
+	// Preview is the session's first user message, which only the beginning of
+	// the file holds. An incremental parse of appended bytes must not overwrite
+	// it with a later prompt.
+	if full {
+		d.Preview = source.Truncate(firstUser, 200)
+	}
 	d.CWD = firstCWD
 	d.Model = modelName
 	d.CreatedAt = minT

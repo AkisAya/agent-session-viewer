@@ -125,3 +125,26 @@ func TestRelations(t *testing.T) {
 		t.Fatalf("child relation = %q, want subagent", r)
 	}
 }
+
+// Session identity is (agent, id). A parent id that another agent happens to
+// reuse must not pull that other agent's sessions into the result.
+func TestRelationsIsAgentScoped(t *testing.T) {
+	ix := openTest(t)
+	insertSession(t, ix, "opencode", "root", "/tmp/p", "", "")
+	insertSession(t, ix, "opencode", "kid", "/tmp/p", "root", "subagent")
+	// Same directory, same parent id, different agent.
+	insertSession(t, ix, "claude", "claude-kid", "/tmp/p", "root", "subagent")
+
+	rels, err := ix.Relations("opencode", "/tmp/p")
+	if err != nil {
+		t.Fatalf("relations: %v", err)
+	}
+	for _, s := range rels {
+		if s.Agent != "opencode" {
+			t.Fatalf("relations leaked a %s session: %+v", s.Agent, s)
+		}
+	}
+	if len(rels) != 2 {
+		t.Fatalf("relations = %+v, want exactly opencode root and kid", rels)
+	}
+}

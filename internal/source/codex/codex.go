@@ -326,7 +326,11 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	if d.Title == "" && full {
 		d.Title = source.Truncate(prompt, 80)
 	}
-	d.Preview = source.Truncate(prompt, 200)
+	// Preview is the session's first user message: only a full parse sees it,
+	// so an incremental delta must leave the stored preview untouched.
+	if full {
+		d.Preview = source.Truncate(prompt, 200)
+	}
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
 	d.Cursor.ID = d.ID
