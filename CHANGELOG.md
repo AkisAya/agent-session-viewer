@@ -77,7 +77,7 @@
     否则取 `response_item` 的 `function_call` / `custom_tool_call`；两条消息流分别累计后择一，避免重复计数。
   - OpenCode：按 `time_created` 归日，统计 assistant 消息中的 `tool` 内容块。
 - 依赖整理：`go mod tidy`，将 `modernc.org/sqlite` 标记为直接依赖。
-- README 增补数据来源、命令行参数、设计要点与 API 表格，新增界面示例截图（压缩为 `ui_example.webp`）。
+- README 增补数据来源、命令行参数、设计要点与 API 表格。
 
 ### Removed
 
