@@ -17,6 +17,7 @@ jobs:
         include:
           - { goos: darwin, goarch: arm64 }
           - { goos: linux, goarch: amd64 }
+          - { goos: windows, goarch: amd64 }
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -33,22 +34,27 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           set -e
+          ext=""
+          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
           go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o "build/asv" .
+            -o "build/asv${ext}" .
 
       - name: Archive
         run: |
           set -e
           name="asv-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}"
-          cd build
-          tar -czf "../${name}.tar.gz" asv*
-          cd ..
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            # Windows users expect a .zip they can extract from Explorer.
+            (cd build && zip -q "../${name}.zip" asv.exe)
+          else
+            (cd build && tar -czf "../${name}.tar.gz" asv)
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: asv-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ./*.tar.gz
+          path: asv-*
           if-no-files-found: error
 
   release:
@@ -66,8 +72,13 @@ jobs:
         with:
           tag: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: Compiler release for ${{ github.ref_name }}
+          body: |
+            Prebuilt `asv` binaries for `${{ github.ref_name }}`.
+
+            Download the archive for your platform, extract it, and run `asv`.
+            See the README for the command-line flags.
           draft: false
-          prerelease: false
+          # A tag like v0.3.0-rc1 is a prerelease and must not become "latest".
+          prerelease: ${{ contains(github.ref_name, '-') }}
           allowUpdates: true
           artifacts: "artifacts/*"

@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Config holds runtime options. Zero-value fields are filled with defaults
@@ -30,6 +31,12 @@ func Home() string {
 
 // Resolve fills empty fields with sensible defaults.
 func (c *Config) Resolve() {
+	c.resolve(runtime.GOOS, os.Getenv)
+}
+
+// resolve is Resolve with the platform and environment injected, so the
+// per-OS defaults can be exercised on any host.
+func (c *Config) resolve(goos string, getenv func(string) string) {
 	home := Home()
 	if c.Host == "" {
 		// Loopback by default: the tool exposes the full local conversation
@@ -41,7 +48,7 @@ func (c *Config) Resolve() {
 		c.Port = 8787
 	}
 	if c.DBPath == "" {
-		c.DBPath = filepath.Join(home, ".local", "share", "agent-session-viewer", "index.db")
+		c.DBPath = filepath.Join(dataBase(goos, home, getenv), "agent-session-viewer", "index.db")
 	}
 	if c.ClaudeDir == "" {
 		c.ClaudeDir = filepath.Join(home, ".claude", "projects")
@@ -53,6 +60,23 @@ func (c *Config) Resolve() {
 		c.CodexIndex = filepath.Join(home, ".codex", "session_index.jsonl")
 	}
 	if c.OpenCodeDB == "" {
+		// OpenCode stores its database under the Unix-style XDG data path on
+		// every platform — Windows included — so this needs no per-OS branch.
+		// (See https://github.com/sst/opencode: ~/.local/share/opencode.)
 		c.OpenCodeDB = filepath.Join(home, ".local", "share", "opencode", "opencode.db")
 	}
+}
+
+// dataBase returns the base directory for this tool's own local data (the
+// index database). The agent CLIs keep their history under ~/.local/share
+// even on Windows, but our derived index follows the platform convention:
+// %LOCALAPPDATA% on Windows, ~/.local/share everywhere else.
+func dataBase(goos, home string, getenv func(string) string) string {
+	if goos == "windows" {
+		if dir := getenv("LOCALAPPDATA"); dir != "" {
+			return dir
+		}
+		return filepath.Join(home, "AppData", "Local")
+	}
+	return filepath.Join(home, ".local", "share")
 }
