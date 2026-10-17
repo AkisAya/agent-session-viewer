@@ -28,6 +28,7 @@
       <span>Agent Session Viewer</span>
     </div>
     <div class="stats" id="stats"></div>
+    <span class="scan-time" id="scan-time" title="上次扫描完成时间"></span>
     <div class="theme-switch" id="theme-switch">
       <button data-pref="auto" title="跟随系统">系统</button>
       <button data-pref="light" title="浅色模式">浅色</button>
@@ -43,6 +44,10 @@
       <button class="tab" data-agent="codex">Codex</button>
       <button class="tab" data-agent="opencode">OpenCode</button>
     </nav>
+    <div class="view-switch" id="view-switch">
+      <button data-view="list" class="active" title="会话列表">会话</button>
+      <button data-view="dash" title="使用热力图与统计看板">看板</button>
+    </div>
     <select id="project-select" class="project-select" title="按项目目录筛选"></select>
     <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…" />
     <select id="sort" class="sort">
@@ -60,6 +65,75 @@
     </aside>
     <main>
       <div id="crumb" class="crumb" hidden></div>
+
+      <section id="dash" class="dash" hidden>
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h3>使用热力图</h3>
+            <span class="panel-sub" id="activity-sub"></span>
+            <div class="panel-tools">
+              <div class="seg" id="hm-metric">
+                <button data-m="msgs" class="active">消息</button>
+                <button data-m="sessions">会话</button>
+                <button data-m="tokens">Token</button>
+                <button data-m="cost">花费</button>
+              </div>
+              <div class="seg" id="hm-range">
+                <button data-r="90">90天</button>
+                <button data-r="180" class="active">180天</button>
+                <button data-r="365">1年</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body" id="activity-body"></div>
+        </div>
+
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h3>趋势</h3>
+            <span class="panel-sub" id="trend-sub"></span>
+            <div class="panel-tools">
+              <div class="seg" id="trend-metric">
+                <button data-m="msgs" class="active">消息</button>
+                <button data-m="tokens">Token</button>
+                <button data-m="cost">花费</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body" id="trend-body"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>模型分布</h3>
+            <span class="panel-sub" id="models-sub"></span>
+          </div>
+          <div class="panel-body" id="models-body"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>项目排行</h3>
+            <span class="panel-sub" id="ranking-sub"></span>
+          </div>
+          <div class="panel-body" id="ranking-body"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>工具排行</h3>
+            <span class="panel-sub" id="tools-sub"></span>
+          </div>
+          <div class="panel-body" id="tools-body"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Agent 对比</h3>
+            <span class="panel-sub" id="agent-sub"></span>
+          </div>
+          <div class="panel-body" id="agent-body"></div>
+        </div>
+      </section>
+
       <div id="list" class="list"></div>
       <div id="empty" class="empty" hidden>没有匹配的会话</div>
     </main>
@@ -72,19 +146,30 @@
           <div id="detail-title" class="detail-title"></div>
           <div id="detail-meta" class="detail-meta"></div>
           <div id="detail-stats" class="detail-stats"></div>
+          <div id="detail-rel" class="detail-rel" hidden></div>
         </div>
         <div class="modal-actions">
           <label class="switch" title="显示模型的思考过程与工具调用">
             <input type="checkbox" id="show-noise" />
             <span>思考 / 工具</span>
           </label>
+          <button id="detail-export" class="btn" title="复制整段对话为 Markdown">导出</button>
           <button id="close" class="btn">关闭</button>
         </div>
       </div>
-      <div id="detail-body" class="messages"></div>
+      <div class="modal-body">
+        <div id="detail-body" class="messages"></div>
+        <aside id="rail" class="rail" hidden>
+          <div class="rail-head">消息<span id="rail-count" class="rail-count"></span></div>
+          <div id="rail-list" class="rail-list"></div>
+        </aside>
+      </div>
     </div>
   </div>
 
+  <div id="tip" class="tip" hidden></div>
+
+  <script src="/md.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

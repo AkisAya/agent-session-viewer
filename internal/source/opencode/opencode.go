@@ -50,10 +50,13 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 
 	msgCounts := s.messageCounts(db)
 	previews := s.previews(db)
+	activity := s.activity(db)
+	tools := s.toolCounts(db)
 
 	rows, err := db.Query(`SELECT id, COALESCE(title,''), COALESCE(directory,''), COALESCE(model,''),
 		COALESCE(agent,''), COALESCE(tokens_input,0), COALESCE(tokens_output,0),
-		COALESCE(tokens_cache_read,0), COALESCE(cost,0), time_created, time_updated FROM session_v2`)
+		COALESCE(tokens_cache_read,0), COALESCE(cost,0), time_created, time_updated,
+		COALESCE(parent_id,''), COALESCE(fork_session_id,'') FROM session_v2`)
 	if err != nil {
 		return next, nil
 	}
@@ -65,32 +68,159 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 			tin, tout, cache                 int64
 			cost                             float64
 			created, updated                 int64
+			parentID, forkID                 string
 		)
-		if rows.Scan(&id, &title, &dir, &modelJSON, &agent, &tin, &tout, &cache, &cost, &created, &updated) != nil {
+		if rows.Scan(&id, &title, &dir, &modelJSON, &agent, &tin, &tout, &cache, &cost,
+			&created, &updated, &parentID, &forkID) != nil {
 			continue
 		}
-		emit(source.Delta{
-			Key:            id,
-			ID:             id,
-			Title:          source.FirstText(title, id),
-			Preview:        previews[id],
-			CWD:            dir,
-			Model:          modelName(modelJSON, agent),
-			CreatedAt:      time.UnixMilli(created),
-			UpdatedAt:      time.UnixMilli(updated),
-			MsgAbsolute:    true,
-			MsgCount:       msgCounts[id],
-			TokensAbsolute: true,
-			TokensIn:       tin,
-			TokensOut:      tout,
-			CacheRead:      cache,
-			CostAbsolute:   true,
-			Cost:           cost,
-			Cursor:         source.Cursor{ID: id},
-		})
+		// parent_id marks a session spawned as a subagent of another one,
+		// fork_session_id a user-made fork. They behave differently: a
+		// subagent belongs with its main session, a fork is a new line.
+		d := source.Delta{
+			Key:              id,
+			ID:               id,
+			Title:            source.FirstText(title, id),
+			Preview:          previews[id],
+			CWD:              dir,
+			Model:            modelName(modelJSON, agent),
+			CreatedAt:        time.UnixMilli(created),
+			UpdatedAt:        time.UnixMilli(updated),
+			MsgAbsolute:      true,
+			MsgCount:         msgCounts[id],
+			TokensAbsolute:   true,
+			TokensIn:         tin,
+			TokensOut:        tout,
+			CacheRead:        cache,
+			CostAbsolute:     true,
+			Cost:             cost,
+			Activity:         activity[id],
+			ActivityAbsolute: true,
+			Tools:            tools[id],
+			ToolsAbsolute:    true,
+			ParentID:         parentID,
+			Cursor:           source.Cursor{ID: id},
+		}
+		switch {
+		case parentID != "":
+			d.Relation = "subagent"
+		case forkID != "":
+			d.ParentID = forkID
+			d.Relation = "fork"
+		}
+		emit(d)
 		next[id] = source.Cursor{ID: id}
 	}
 	return next, nil
+}
+
+// activity buckets every message of a session into its local calendar day.
+func (s *Source) activity(db *sql.DB) map[string]map[string]int {
+	out := map[string]map[string]int{}
+	rows, err := db.Query(`SELECT session_id,
+		substr(datetime(time_created/1000,'unixepoch','localtime'),1,10), count(*)
+		FROM session_message WHERE type IN ('user','assistant') GROUP BY session_id, 2`)
+	if err == nil {
+		s.readDayCounts(rows, out, nil)
+	}
+	// Legacy sessions live only in the message table.
+	rows2, err := db.Query(`SELECT session_id,
+		substr(datetime(time_created/1000,'unixepoch','localtime'),1,10), count(*)
+		FROM message GROUP BY session_id, 2`)
+	if err == nil {
+		s.readDayCounts(rows2, out, func(id string) bool { _, seen := out[id]; return !seen })
+	}
+	return out
+}
+
+func (s *Source) readDayCounts(rows *sql.Rows, out map[string]map[string]int, skip func(string) bool) {
+	defer rows.Close()
+	for rows.Next() {
+		var id, day string
+		var n int
+		if rows.Scan(&id, &day, &n) != nil || day == "" {
+			continue
+		}
+		if skip != nil && !skip(id) {
+			continue
+		}
+		m := out[id]
+		if m == nil {
+			m = map[string]int{}
+			out[id] = m
+		}
+		m[day] += n
+	}
+}
+
+// toolCounts counts tool calls per session from assistant content parts.
+func (s *Source) toolCounts(db *sql.DB) map[string]map[string]int {
+	out := map[string]map[string]int{}
+	rows, err := db.Query(`SELECT session_id, data FROM session_message WHERE type = 'assistant'`)
+	if err == nil {
+		s.readToolRows(rows, out)
+	}
+	// Legacy sessions keep their tool calls in the part table.
+	rows2, err := db.Query(`SELECT session_id, data FROM part
+		WHERE session_id NOT IN (SELECT DISTINCT session_id FROM session_message)`)
+	if err != nil {
+		// session_message is missing entirely: every session is legacy.
+		if rowsAll, errAll := db.Query(`SELECT session_id, data FROM part`); errAll == nil {
+			rows2 = rowsAll
+		}
+	}
+	if rows2 != nil {
+		s.readToolRows(rows2, out)
+	}
+	return out
+}
+
+func (s *Source) readToolRows(rows *sql.Rows, out map[string]map[string]int) {
+	defer rows.Close()
+	for rows.Next() {
+		var id, data string
+		if rows.Scan(&id, &data) != nil {
+			continue
+		}
+		for _, name := range toolNamesIn(data) {
+			m := out[id]
+			if m == nil {
+				m = map[string]int{}
+				out[id] = m
+			}
+			m[name]++
+		}
+	}
+}
+
+// toolNamesIn returns the normalized tool names of one message payload. It
+// handles both the current shape (a content array) and the legacy part shape.
+func toolNamesIn(data string) []string {
+	var d struct {
+		Content []struct {
+			Type string `json:"type"`
+			Name string `json:"name"`
+		} `json:"content"`
+	}
+	if json.Unmarshal([]byte(data), &d) == nil {
+		var out []string
+		for _, c := range d.Content {
+			if c.Type == "tool" && c.Name != "" {
+				out = append(out, source.ToolName(c.Name))
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	var p struct {
+		Type string `json:"type"`
+		Tool string `json:"tool"`
+	}
+	if json.Unmarshal([]byte(data), &p) == nil && p.Type == "tool" && p.Tool != "" {
+		return []string{source.ToolName(p.Tool)}
+	}
+	return nil
 }
 
 // messageCounts counts conversational turns per session, preferring the

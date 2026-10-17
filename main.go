@@ -56,7 +56,7 @@ func main() {
 	if err := ix.Scan(); err != nil {
 		log.Printf("initial scan error: %v", err)
 	}
-	if st, err := ix.Stats(); err == nil {
+	if st, err := ix.Stats("", "", ""); err == nil {
 		log.Printf("indexed %d sessions in %s", st.Total.Sessions, time.Since(start).Round(time.Millisecond))
 	}
 

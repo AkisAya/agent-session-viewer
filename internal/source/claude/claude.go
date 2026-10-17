@@ -123,9 +123,12 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		firstCWD                                  string
 		modelName                                 string
 		minT, maxT                                time.Time
+		ts                                        time.Time
 		cost                                      float64
 		sawCost                                   bool
 	)
+	act := map[string]int{}
+	tools := map[string]int{}
 
 	for _, raw := range lines {
 		var e entry
@@ -135,12 +138,13 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		if e.SessionID != "" {
 			d.ID = e.SessionID
 		}
-		if ts := parseTime(e.Timestamp); !ts.IsZero() {
-			if minT.IsZero() || ts.Before(minT) {
-				minT = ts
+		if t := parseTime(e.Timestamp); !t.IsZero() {
+			ts = t
+			if minT.IsZero() || t.Before(minT) {
+				minT = t
 			}
-			if ts.After(maxT) {
-				maxT = ts
+			if t.After(maxT) {
+				maxT = t
 			}
 		}
 		switch e.Type {
@@ -181,6 +185,18 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					d.TokensOut += m.Usage.OutputTokens
 					d.CacheRead += m.Usage.CacheReadInputTokens
 				}
+				if !ts.IsZero() {
+					act[ts.Local().Format("2006-01-02")]++
+				}
+				// Tool calls live in the assistant content blocks; tool
+				// results are separate user blocks and must not be counted.
+				if b := blocksOf(m.Content); b != nil {
+					for _, blk := range b {
+						if blk.Type == "tool_use" && blk.Name != "" {
+							tools[source.ToolName(blk.Name)]++
+						}
+					}
+				}
 			}
 			d.MsgDelta++
 			if e.Type == "user" && !e.IsSidechain {
@@ -203,6 +219,17 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	d.Model = modelName
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
+	d.Activity = act
+	d.Tools = tools
+	if full {
+		// A whole-file parse is authoritative: it may overwrite older values
+		// left behind by a previous run (e.g. after the file was rewritten).
+		d.ActivityAbsolute = true
+		d.ToolsAbsolute = true
+		d.MsgAbsolute = true
+		d.MsgCount = d.MsgDelta
+		d.TokensAbsolute = true
+	}
 	if sawCost {
 		d.CostAbsolute = true
 		d.Cost = cost

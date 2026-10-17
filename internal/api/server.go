@@ -24,6 +24,11 @@ func New(ix *index.Index, web fs.FS) http.Handler {
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
+	mux.HandleFunc("GET /api/activity", s.handleActivity)
+	mux.HandleFunc("GET /api/trend", s.handleTrend)
+	mux.HandleFunc("GET /api/models", s.handleModels)
+	mux.HandleFunc("GET /api/tools", s.handleTools)
+	mux.HandleFunc("GET /api/relations", s.handleRelations)
 	mux.HandleFunc("POST /api/rescan", s.handleRescan)
 	mux.HandleFunc("GET /api/sessions/{agent}/{id}", s.handleTranscript)
 	mux.Handle("/", s.static())
@@ -31,7 +36,8 @@ func New(ix *index.Index, web fs.FS) http.Handler {
 }
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
-	st, err := s.ix.Stats()
+	q := r.URL.Query()
+	st, err := s.ix.Stats(q.Get("agent"), q.Get("cwd"), q.Get("day"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -50,6 +56,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Agent: q.Get("agent"),
 		CWD:   q.Get("cwd"),
 		Query: q.Get("q"),
+		Day:   q.Get("day"),
 		Sort:  q.Get("sort"),
 		Limit: limit,
 	})
@@ -87,6 +94,73 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		projects = []model.Project{}
 	}
 	writeJSON(w, projects)
+}
+
+func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	days, err := s.ix.Activity(q.Get("agent"), q.Get("cwd"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if days == nil {
+		days = []model.ActivityDay{}
+	}
+	writeJSON(w, days)
+}
+
+func (s *Server) handleTrend(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	days, _ := strconv.Atoi(q.Get("days"))
+	pts, err := s.ix.Trend(q.Get("agent"), q.Get("cwd"), days)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if pts == nil {
+		pts = []model.TrendPoint{}
+	}
+	writeJSON(w, pts)
+}
+
+func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	models, err := s.ix.Models(q.Get("agent"), q.Get("cwd"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if models == nil {
+		models = []model.ModelStat{}
+	}
+	writeJSON(w, models)
+}
+
+func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	st, err := s.ix.Tools(q.Get("agent"), q.Get("cwd"), limit)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if st.Tools == nil {
+		st.Tools = []model.ToolStat{}
+	}
+	writeJSON(w, st)
+}
+
+func (s *Server) handleRelations(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	sessions, err := s.ix.Relations(q.Get("agent"), q.Get("cwd"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if sessions == nil {
+		sessions = []model.Session{}
+	}
+	writeJSON(w, sessions)
 }
 
 func (s *Server) handleRescan(w http.ResponseWriter, r *http.Request) {

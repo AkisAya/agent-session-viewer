@@ -29,10 +29,11 @@ type line struct {
 }
 
 type meta struct {
-	SessionID     string `json:"session_id"`
-	CWD           string `json:"cwd"`
-	ModelProvider string `json:"model_provider"`
-	Timestamp     string `json:"timestamp"`
+	SessionID      string `json:"session_id"`
+	CWD            string `json:"cwd"`
+	ModelProvider  string `json:"model_provider"`
+	Timestamp      string `json:"timestamp"`
+	ParentThreadID string `json:"parent_thread_id"`
 }
 
 type usage struct {
@@ -56,6 +57,7 @@ type item struct {
 	Command     []string        `json:"command"`
 	Server      string          `json:"server"`
 	Tool        string          `json:"tool"`
+	Name        string          `json:"name"`
 }
 
 type tokenRecord struct {
@@ -65,17 +67,25 @@ type tokenRecord struct {
 // responseItem is the payload of a "response_item" line, used as a fallback
 // for older/short rollouts that contain no event_msg conversation items.
 type responseItem struct {
-	Type    string `json:"type"`
-	Role    string `json:"role"`
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
+	Type    string          `json:"type"`
+	Role    string          `json:"role"`
+	Name    string          `json:"name"`
+	Content json.RawMessage `json:"content"`
 }
 
 func respText(ri *responseItem) string {
+	if len(ri.Content) == 0 || ri.Content[0] != '[' {
+		return ""
+	}
+	var arr []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(ri.Content, &arr) != nil {
+		return ""
+	}
 	var parts []string
-	for _, c := range ri.Content {
+	for _, c := range arr {
 		if t := strings.TrimSpace(c.Text); t != "" {
 			parts = append(parts, t)
 		}
@@ -151,12 +161,19 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	var (
 		metaID, cwd, provider, modelName string
 		firstUser, respUser              string
+		parentThread                     string
 		minT, maxT                       time.Time
 		sawCumulative                    bool
 		cumulative                       usage
 		additive                         usage
 		sawAdditive                      bool
 	)
+	// The two streams describe the same conversation; each is accumulated on
+	// its own and the richer one is chosen after the loop to avoid double
+	// counting. Message timestamps are bucketed into local days for the
+	// activity heatmap.
+	evAct, respAct := map[string]int{}, map[string]int{}
+	evTools, respTools := map[string]int{}, map[string]int{}
 
 	for _, raw := range lines {
 		var l line
@@ -181,6 +198,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 				}
 				cwd = source.FirstText(cwd, m.CWD)
 				provider = source.FirstText(provider, m.ModelProvider)
+				parentThread = source.FirstText(parentThread, m.ParentThreadID)
 			}
 		case "turn_context":
 			var tc struct {
@@ -211,9 +229,20 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 				switch ev.Item.Type {
 				case "UserMessage", "AgentMessage":
 					d.MsgDelta++
+					if !ts.IsZero() {
+						evAct[ts.Local().Format("2006-01-02")]++
+					}
 					if ev.Item.Type == "UserMessage" && firstUser == "" {
 						firstUser = itemText(ev.Item)
 					}
+				case "CommandExecution":
+					evTools["shell"]++
+				case "WebSearch":
+					evTools["websearch"]++
+				case "McpToolCall":
+					evTools[mcpToolName(ev.Item)]++
+				case "FunctionCall", "CustomToolCall":
+					evTools[source.ToolName(source.FirstText(ev.Item.Name, ev.Item.Tool))]++
 				}
 			}
 		case "token_usage_record":
@@ -226,10 +255,23 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 			}
 		case "response_item":
 			var ri responseItem
-			if json.Unmarshal(l.Payload, &ri) == nil && ri.Type == "message" && ri.Role == "user" {
-				if t := respText(&ri); t != "" && !isSynthetic(t) && respUser == "" {
-					respUser = t
+			if json.Unmarshal(l.Payload, &ri) != nil {
+				continue
+			}
+			switch {
+			case ri.Type == "message" && (ri.Role == "user" || ri.Role == "assistant"):
+				if !ts.IsZero() {
+					respAct[ts.Local().Format("2006-01-02")]++
 				}
+				if ri.Role == "user" {
+					if t := respText(&ri); t != "" && !isSynthetic(t) && respUser == "" {
+						respUser = t
+					}
+				}
+			case ri.Type == "function_call" || ri.Type == "custom_tool_call":
+				respTools[source.ToolName(ri.Name)]++
+			case ri.Type == "web_search_call":
+				respTools["websearch"]++
 			}
 		}
 	}
@@ -237,8 +279,35 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	if metaID != "" {
 		d.ID = metaID
 	}
+	if parentThread != "" && parentThread != d.ID {
+		// The rollout continues another thread: treat it as a resumed session.
+		d.ParentID = parentThread
+		d.Relation = "resume"
+	}
 	d.CWD = cwd
 	d.Model = source.FirstText(modelName, provider)
+
+	// Prefer the event stream for messages and the response stream for tools:
+	// it records every function call (shell, patch, plan) while the event
+	// stream only surfaces a subset of them.
+	act, tools := evAct, respTools
+	if sumCounts(evAct) == 0 {
+		act = respAct
+	}
+	if len(respTools) == 0 {
+		tools = evTools
+	}
+	d.Activity = act
+	d.Tools = tools
+	if full {
+		// A whole-file parse is authoritative for the histograms.
+		d.ActivityAbsolute = true
+		d.ToolsAbsolute = true
+		if sumCounts(evAct) == 0 && sumCounts(respAct) > 0 {
+			d.MsgAbsolute = true
+			d.MsgCount = sumCounts(respAct)
+		}
+	}
 
 	switch {
 	case sawCumulative:
@@ -368,6 +437,24 @@ func codexItemMessage(it *item) (role, text string) {
 		return "tool", "[web search]"
 	}
 	return "", ""
+}
+
+// mcpToolName renders an MCP tool call as "mcp:<server>.<tool>".
+func mcpToolName(it *item) string {
+	name := source.FirstText(it.Tool, it.Name, "tool")
+	if it.Server != "" {
+		return "mcp:" + it.Server + "." + name
+	}
+	return "mcp:" + name
+}
+
+// sumCounts totals a per-key counter map.
+func sumCounts(m map[string]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
 }
 
 func (s *Source) find(id string) ([]string, error) {

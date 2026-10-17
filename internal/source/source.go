@@ -47,6 +47,21 @@ type Delta struct {
 	CostAbsolute   bool
 	Cost           float64
 
+	// Activity is a message count per local calendar day (YYYY-MM-DD). It is
+	// added to the stored histogram unless ActivityAbsolute is set.
+	Activity         map[string]int
+	ActivityAbsolute bool
+
+	// Tools is a tool-call count per normalized tool name for this session.
+	// Added unless ToolsAbsolute is set.
+	Tools         map[string]int
+	ToolsAbsolute bool
+
+	// ParentID links this session to the session it continues (resume/fork).
+	// Relation labels the link: "fork" | "resume". Empty means root.
+	ParentID string
+	Relation string
+
 	Cursor Cursor
 }
 
