@@ -54,20 +54,20 @@ func TestHistogramPerSource(t *testing.T) {
 
 	// Full parse of the first rollout file.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-02": 3}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 2}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 3}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 2}}})
 	// Full parse of the second file of the same session: additive across src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-b.jsonl",
-		Activity: map[string]int{"2026-01-02": 4}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 1}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 4}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 1}}})
 	// An incremental delta (newly appended bytes only) merges into its src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-03": 2},
-		Tools:    map[string]int{"edit": 1}})
+		Activity: source.Histogram{Counts: map[string]int{"2026-01-03": 2}},
+		Tools:    source.Histogram{Counts: map[string]int{"edit": 1}}})
 	// A full re-parse of file A replaces only A's own rows.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-02": 1}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 5}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 1}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 5}}})
 
 	days, err := ix.Activity("codex", "/tmp/p")
 	if err != nil {

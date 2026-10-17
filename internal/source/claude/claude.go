@@ -181,9 +181,9 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					modelName = m.Model
 				}
 				if m.Usage != nil {
-					d.TokensIn += m.Usage.InputTokens
-					d.TokensOut += m.Usage.OutputTokens
-					d.CacheRead += m.Usage.CacheReadInputTokens
+					d.Tokens.In += m.Usage.InputTokens
+					d.Tokens.Out += m.Usage.OutputTokens
+					d.Tokens.Cache += m.Usage.CacheReadInputTokens
 				}
 				if !ts.IsZero() {
 					act[ts.Local().Format("2006-01-02")]++
@@ -198,7 +198,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					}
 				}
 			}
-			d.MsgDelta++
+			d.Msgs.Value++
 			if e.Type == "user" && !e.IsSidechain {
 				if txt := plainText(e.Message); txt != "" && firstUser == "" {
 					firstUser = txt
@@ -224,20 +224,19 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	d.Model = modelName
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
-	d.Activity = act
-	d.Tools = tools
+	d.Activity = source.Histogram{Counts: act}
+	d.Tools = source.Histogram{Counts: tools}
 	if full {
-		// A whole-file parse is authoritative: it may overwrite older values
-		// left behind by a previous run (e.g. after the file was rewritten).
-		d.ActivityAbsolute = true
-		d.ToolsAbsolute = true
-		d.MsgAbsolute = true
-		d.MsgCount = d.MsgDelta
-		d.TokensAbsolute = true
+		// A whole-file parse is authoritative for this resource: it may
+		// overwrite values left behind by a previous run (e.g. after the file
+		// was rewritten).
+		d.Activity.Replace = true
+		d.Tools.Replace = true
+		d.Msgs.Replace = true
+		d.Tokens.Replace = true
 	}
 	if sawCost {
-		d.CostAbsolute = true
-		d.Cost = cost
+		d.Cost = source.Amount{Replace: true, Value: cost}
 	}
 
 	if d.ID != "" {

@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS session (
   tokens_out  INTEGER NOT NULL DEFAULT 0,
   cache_read  INTEGER NOT NULL DEFAULT 0,
   cost        REAL NOT NULL DEFAULT 0,
-  source_path TEXT NOT NULL DEFAULT '',
   parent_id   TEXT NOT NULL DEFAULT '',
   relation    TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (agent, id)
@@ -88,17 +87,22 @@ CREATE TABLE IF NOT EXISTS tool_use (
   PRIMARY KEY (agent, id, src, tool)
 );
 
--- session_source maps a session to every backing resource (file) that
--- contributed to it. A Codex session may span several rollout files, so
--- membership -- not a single source_path -- decides whether a session is
--- still alive.
-CREATE TABLE IF NOT EXISTS session_source (
-  agent TEXT NOT NULL,
-  id    TEXT NOT NULL,
-  src   TEXT NOT NULL,
+-- session_usage is the per-resource (file) contribution to a session. A
+-- session's totals are the sum over its resources, so a Codex session that
+-- spans several rollout files accumulates them instead of overwriting one
+-- another. Membership here also decides whether a session is still alive.
+CREATE TABLE IF NOT EXISTS session_usage (
+  agent      TEXT NOT NULL,
+  id         TEXT NOT NULL,
+  src        TEXT NOT NULL,
+  msg_count  INTEGER NOT NULL DEFAULT 0,
+  tokens_in  INTEGER NOT NULL DEFAULT 0,
+  tokens_out INTEGER NOT NULL DEFAULT 0,
+  cache_read INTEGER NOT NULL DEFAULT 0,
+  cost       REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, id, src)
 );
-CREATE INDEX IF NOT EXISTS session_source_src_idx ON session_source(agent, src);
+CREATE INDEX IF NOT EXISTS session_usage_src_idx ON session_usage(agent, src);
 `
 
 // Options configures how the cache is stored.
@@ -145,8 +149,9 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	// re-scan (cursors are invalidated so every source is re-read once).
 	// v4: activity/tool histograms + parent links; v5: MultiEdit alias fix;
 	// v6: OpenCode parent_id relabelled as "subagent" (was "fork");
-	// v7: session_source membership table (multi-file session pruning).
-	const schemaVersion = "7"
+	// v7: session_source membership table; v8: per-source usage table
+	// (session totals are summed from their resources).
+	const schemaVersion = "8"
 	var ver string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&ver)
 	if ver != schemaVersion {
@@ -154,7 +159,7 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 		_, _ = db.Exec(`DELETE FROM session`)
 		_, _ = db.Exec(`DELETE FROM activity`)
 		_, _ = db.Exec(`DELETE FROM tool_use`)
-		_, _ = db.Exec(`DELETE FROM session_source`)
+		_, _ = db.Exec(`DELETE FROM session_usage`)
 		_, _ = db.Exec(`INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)`, schemaVersion)
 	}
 	ix := &Index{db: db, sources: sources, byName: map[string]source.Source{}}
@@ -252,7 +257,7 @@ func (ix *Index) scanSource(src source.Source) error {
 	if len(placeholders) > 0 {
 		inSrc = ` AND src NOT IN (` + strings.Join(placeholders, ",") + `)`
 	}
-	if _, err := tx.Exec(`DELETE FROM session_source WHERE agent = ?`+inSrc, keys...); err != nil {
+	if _, err := tx.Exec(`DELETE FROM session_usage WHERE agent = ?`+inSrc, keys...); err != nil {
 		return err
 	}
 	// Histograms of disappeared source files would otherwise leak forever.
@@ -262,7 +267,7 @@ func (ix *Index) scanSource(src source.Source) error {
 		}
 	}
 	if _, err := tx.Exec(`DELETE FROM session WHERE agent = ? AND id NOT IN (
-		SELECT id FROM session_source WHERE agent = ?)`, agent, agent); err != nil {
+		SELECT id FROM session_usage WHERE agent = ?)`, agent, agent); err != nil {
 		return err
 	}
 
@@ -290,51 +295,42 @@ func (ix *Index) loadCursors(agent string) (map[string]source.Cursor, error) {
 }
 
 type row struct {
-	exists   bool
-	msg      int
-	tin      int64
-	tout     int64
-	cache    int64
-	cost     float64
-	created  int64
-	updated  int64
 	title    string
 	preview  string
 	cwd      string
 	model    string
+	created  int64
+	updated  int64
 	parent   string
 	relation string
 }
 
 func applyDelta(tx *sql.Tx, agent string, d source.Delta) error {
 	var old row
-	err := tx.QueryRow(`SELECT title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,parent_id,relation
+	err := tx.QueryRow(`SELECT title,preview,cwd,model,created_at,updated_at,parent_id,relation
 		FROM session WHERE agent=? AND id=?`, agent, d.ID).Scan(
 		&old.title, &old.preview, &old.cwd, &old.model, &old.created, &old.updated,
-		&old.msg, &old.tin, &old.tout, &old.cache, &old.cost, &old.parent, &old.relation)
-	if err == nil {
-		old.exists = true
-	} else if err != sql.ErrNoRows {
+		&old.parent, &old.relation)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	// Fold this resource's contribution, then derive the session totals from
+	// every resource that backs it.
+	if err := applyUsage(tx, agent, d.ID, srcKey(d), d); err != nil {
+		return err
+	}
+	var msg int
+	var tin, tout, cache int64
+	var cost float64
+	if err := tx.QueryRow(`SELECT COALESCE(sum(msg_count),0), COALESCE(sum(tokens_in),0),
+		COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0), COALESCE(sum(cost),0)
+		FROM session_usage WHERE agent=? AND id=?`, agent, d.ID).
+		Scan(&msg, &tin, &tout, &cache, &cost); err != nil {
 		return err
 	}
 
 	r := old
-	if d.MsgAbsolute {
-		r.msg = d.MsgCount
-	} else {
-		r.msg = old.msg + d.MsgDelta
-	}
-	if d.TokensAbsolute {
-		r.tin, r.tout, r.cache = d.TokensIn, d.TokensOut, d.CacheRead
-	} else {
-		r.tin, r.tout, r.cache = old.tin+d.TokensIn, old.tout+d.TokensOut, old.cache+d.CacheRead
-	}
-	if d.CostAbsolute {
-		r.cost = d.Cost
-	} else {
-		r.cost = old.cost + d.Cost
-	}
-
 	r.title = pick(d.Title, old.title)
 	r.preview = pick(d.Preview, old.preview)
 	r.cwd = pick(d.CWD, old.cwd)
@@ -348,31 +344,61 @@ func applyDelta(tx *sql.Tx, agent string, d source.Delta) error {
 		r.created = nc
 	case nc != 0 && nc < old.created:
 		r.created = nc
-	default:
-		r.created = old.created
 	}
 	nu := d.UpdatedAt.UnixNano()
 	if nu > old.updated {
 		r.updated = nu
-	} else {
-		r.updated = old.updated
 	}
 
 	_, err = tx.Exec(`INSERT OR REPLACE INTO session
-		(agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,source_path,parent_id,relation)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		(agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,parent_id,relation)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		agent, d.ID, r.title, r.preview, r.cwd, r.model, r.created, r.updated,
-		r.msg, r.tin, r.tout, r.cache, r.cost, d.Key, r.parent, r.relation)
-	if err != nil {
+		msg, tin, tout, cache, cost, r.parent, r.relation)
+	return err
+}
+
+// srcKey identifies the resource a delta describes, falling back to the
+// session id for sources that do not expose a file path.
+func srcKey(d source.Delta) string {
+	if d.Key != "" {
+		return d.Key
+	}
+	return d.ID
+}
+
+// applyUsage folds one resource's numbers into its session_usage row. Replace
+// overwrites that resource's values; otherwise they are added, which is how an
+// append-only source reports the delta of the newly read bytes.
+func applyUsage(tx *sql.Tx, agent, id, src string, d source.Delta) error {
+	var msg int
+	var tin, tout, cache int64
+	var cost float64
+	err := tx.QueryRow(`SELECT msg_count,tokens_in,tokens_out,cache_read,cost
+		FROM session_usage WHERE agent=? AND id=? AND src=?`, agent, id, src).
+		Scan(&msg, &tin, &tout, &cache, &cost)
+	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	if d.Key != "" {
-		if _, err := tx.Exec(`INSERT OR IGNORE INTO session_source(agent,id,src) VALUES(?,?,?)`,
-			agent, d.ID, d.Key); err != nil {
-			return err
-		}
+	if d.Msgs.Replace {
+		msg = d.Msgs.Value
+	} else {
+		msg += d.Msgs.Value
 	}
-	return nil
+	if d.Tokens.Replace {
+		tin, tout, cache = d.Tokens.In, d.Tokens.Out, d.Tokens.Cache
+	} else {
+		tin, tout, cache = tin+d.Tokens.In, tout+d.Tokens.Out, cache+d.Tokens.Cache
+	}
+	if d.Cost.Replace {
+		cost = d.Cost.Value
+	} else {
+		cost += d.Cost.Value
+	}
+	_, err = tx.Exec(`INSERT OR REPLACE INTO session_usage
+		(agent,id,src,msg_count,tokens_in,tokens_out,cache_read,cost)
+		VALUES(?,?,?,?,?,?,?,?)`, agent, id, src, msg, tin, tout, cache, cost)
+	return err
 }
 
 // applyActivity folds a delta's per-day message histogram into the activity
@@ -381,20 +407,20 @@ func applyDelta(tx *sql.Tx, agent string, d source.Delta) error {
 // Absolute deltas replace the rows of their own source, additive ones merge
 // (incremental scans only parse newly appended bytes).
 func applyActivity(tx *sql.Tx, agent string, d source.Delta) error {
-	if d.ActivityAbsolute {
-		if _, err := tx.Exec(`DELETE FROM activity WHERE agent=? AND id=? AND src=?`, agent, d.ID, d.Key); err != nil {
+	if d.Activity.Replace {
+		if _, err := tx.Exec(`DELETE FROM activity WHERE agent=? AND id=? AND src=?`, agent, d.ID, srcKey(d)); err != nil {
 			return err
 		}
-	} else if len(d.Activity) == 0 {
+	} else if len(d.Activity.Counts) == 0 {
 		return nil
 	}
-	for day, n := range d.Activity {
+	for day, n := range d.Activity.Counts {
 		if day == "" || n <= 0 {
 			continue
 		}
 		const upsert = `INSERT INTO activity(agent,id,src,day,msgs) VALUES(?,?,?,?,?)
 			ON CONFLICT(agent,id,src,day) DO UPDATE SET msgs = msgs + excluded.msgs`
-		if _, err := tx.Exec(upsert, agent, d.ID, d.Key, day, n); err != nil {
+		if _, err := tx.Exec(upsert, agent, d.ID, srcKey(d), day, n); err != nil {
 			return err
 		}
 	}
@@ -404,20 +430,20 @@ func applyActivity(tx *sql.Tx, agent string, d source.Delta) error {
 // applyTools folds a delta's tool-call counters into the tool_use table with
 // the same per-source absolute/additive semantics as applyActivity.
 func applyTools(tx *sql.Tx, agent string, d source.Delta) error {
-	if d.ToolsAbsolute {
-		if _, err := tx.Exec(`DELETE FROM tool_use WHERE agent=? AND id=? AND src=?`, agent, d.ID, d.Key); err != nil {
+	if d.Tools.Replace {
+		if _, err := tx.Exec(`DELETE FROM tool_use WHERE agent=? AND id=? AND src=?`, agent, d.ID, srcKey(d)); err != nil {
 			return err
 		}
-	} else if len(d.Tools) == 0 {
+	} else if len(d.Tools.Counts) == 0 {
 		return nil
 	}
-	for tool, n := range d.Tools {
+	for tool, n := range d.Tools.Counts {
 		if tool == "" || n <= 0 {
 			continue
 		}
 		const upsert = `INSERT INTO tool_use(agent,id,src,tool,cnt) VALUES(?,?,?,?,?)
 			ON CONFLICT(agent,id,src,tool) DO UPDATE SET cnt = cnt + excluded.cnt`
-		if _, err := tx.Exec(upsert, agent, d.ID, d.Key, tool, n); err != nil {
+		if _, err := tx.Exec(upsert, agent, d.ID, srcKey(d), tool, n); err != nil {
 			return err
 		}
 	}

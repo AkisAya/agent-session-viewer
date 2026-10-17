@@ -17,14 +17,44 @@ type Cursor struct {
 	Offset int64  `json:"offset"`
 }
 
-// Delta is the incremental contribution of one session since the last scan.
+// Counter is a count that a source either adds to the stored value or, when
+// Replace is set, declares authoritative for the resource it describes.
+type Counter struct {
+	Replace bool
+	Value   int
+}
+
+// Usage is token accounting with the same additive/replace semantics as
+// Counter. A source reports all three fields together.
+type Usage struct {
+	Replace        bool
+	In, Out, Cache int64
+}
+
+// Amount is a money value with the same additive/replace semantics.
+type Amount struct {
+	Replace bool
+	Value   float64
+}
+
+// Histogram is a count per key (a local day for activity, a normalized tool
+// name for tool use). Replace means the map is the complete picture for the
+// resource; otherwise the counts are merged into it.
+type Histogram struct {
+	Replace bool
+	Counts  map[string]int
+}
+
+// Delta is the incremental contribution of one session from one source
+// resource (usually a file).
 //
-// For append-only sources (Claude, Codex) the *Delta fields are counts of what
-// was parsed from the newly read bytes and the index accumulates them. For
-// authoritative sources (OpenCode) Replace is true and the absolute values
-// overwrite the stored record instead of being added.
+// Every numeric field is expressed relative to that single resource: a
+// whole-file parse reports Replace, an append reports the delta of the newly
+// read bytes. The index stores each resource's contribution on its own and
+// sums them into the session, so a session that spans several files (Codex
+// resumes) accumulates them instead of overwriting one another.
 type Delta struct {
-	Key       string // stable identity used for cursor bookkeeping (file path or session id)
+	Key       string // stable identity of the resource (file path or session id)
 	ID        string // session id
 	Title     string
 	Preview   string // first user message snippet, for card display
@@ -33,32 +63,15 @@ type Delta struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	// MsgDelta is always added to the stored message count.
-	MsgDelta int
-
-	// Absolute values. Each flag switches the corresponding field from
-	// additive to authoritative (overwrite) semantics.
-	MsgAbsolute    bool
-	MsgCount       int
-	TokensAbsolute bool
-	TokensIn       int64
-	TokensOut      int64
-	CacheRead      int64
-	CostAbsolute   bool
-	Cost           float64
-
-	// Activity is a message count per local calendar day (YYYY-MM-DD). It is
-	// added to the stored histogram unless ActivityAbsolute is set.
-	Activity         map[string]int
-	ActivityAbsolute bool
-
-	// Tools is a tool-call count per normalized tool name for this session.
-	// Added unless ToolsAbsolute is set.
-	Tools         map[string]int
-	ToolsAbsolute bool
+	Msgs     Counter
+	Tokens   Usage
+	Cost     Amount
+	Activity Histogram
+	Tools    Histogram
 
 	// ParentID links this session to the session it continues (resume/fork).
-	// Relation labels the link: "fork" | "resume". Empty means root.
+	// Relation labels the link: "subagent" | "fork" | "resume". Empty means
+	// root.
 	ParentID string
 	Relation string
 

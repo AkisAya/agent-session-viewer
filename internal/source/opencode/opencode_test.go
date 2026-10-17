@@ -66,13 +66,13 @@ func TestScan(t *testing.T) {
 	if d.Preview != "hello oc" {
 		t.Fatalf("preview = %q", d.Preview)
 	}
-	if d.MsgCount != 2 || d.TokensIn != 30 || d.TokensOut != 40 || d.CacheRead != 5 || d.Cost != 0.25 {
+	if d.Msgs.Value != 2 || d.Tokens.In != 30 || d.Tokens.Out != 40 || d.Tokens.Cache != 5 || d.Cost.Value != 0.25 {
 		t.Fatalf("numbers = %+v", d)
 	}
-	if !d.MsgAbsolute || !d.TokensAbsolute || !d.CostAbsolute {
-		t.Fatalf("OpenCode deltas must be absolute: %+v", d)
+	if !d.Msgs.Replace || !d.Tokens.Replace || !d.Cost.Replace {
+		t.Fatalf("OpenCode deltas must be authoritative: %+v", d)
 	}
-	if d.Tools["shell"] != 1 {
+	if d.Tools.Counts["shell"] != 1 {
 		t.Fatalf("tools = %+v, want shell=1", d.Tools)
 	}
 }

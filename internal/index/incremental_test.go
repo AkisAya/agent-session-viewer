@@ -178,6 +178,31 @@ func TestCodexIncrementalMatchesFull(t *testing.T) {
 		filepath.Join("2026", "02", "01", "rollout-2026-02-01T11-00-00-cx1.jsonl"))
 }
 
+// A resumed Codex session spans several rollout files; each file reports its
+// own cumulative token usage, so the session total must be their sum rather
+// than the last file overwriting the others.
+func TestCodexMultiFileTokensSum(t *testing.T) {
+	dir := t.TempDir()
+	writeLines(t, filepath.Join(dir, "rollout-a.jsonl"), false,
+		`{"type":"session_meta","timestamp":"2026-03-01T12:00:00Z","payload":{"session_id":"cx","cwd":"/tmp/x"}}`,
+		`{"type":"event_msg","timestamp":"2026-03-01T12:00:05Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":5,"output_tokens":20}}}}`)
+	writeLines(t, filepath.Join(dir, "rollout-b.jsonl"), false,
+		`{"type":"session_meta","timestamp":"2026-03-02T12:00:00Z","payload":{"session_id":"cx","cwd":"/tmp/x"}}`,
+		`{"type":"event_msg","timestamp":"2026-03-02T12:00:05Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":50,"cached_input_tokens":2,"output_tokens":10}}}}`)
+
+	ix := newIndex(t, &codex.Source{Root: dir})
+	scan(t, ix)
+
+	sessions := takeSnapshot(t, ix, "codex").sessions
+	if len(sessions) != 1 {
+		t.Fatalf("sessions = %d, want 1", len(sessions))
+	}
+	s := sessions["cx"]
+	if s.TokensIn != 150 || s.TokensOut != 30 || s.CacheRead != 7 {
+		t.Fatalf("tokens = in:%d out:%d cache:%d, want 150/30/7", s.TokensIn, s.TokensOut, s.CacheRead)
+	}
+}
+
 // A Codex session can span several rollout files. Losing one of them must not
 // delete the session while another still backs it.
 func TestPruneKeepsMultiFileSession(t *testing.T) {

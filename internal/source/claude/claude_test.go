@@ -74,7 +74,7 @@ func TestScanEmitsNormalizedTools(t *testing.T) {
 	if d.ID != "real-id" {
 		t.Fatalf("id = %q, want the id from the body", d.ID)
 	}
-	if d.Tools["shell"] != 1 || d.Tools["mcp:github.create_issue"] != 1 {
+	if d.Tools.Counts["shell"] != 1 || d.Tools.Counts["mcp:github.create_issue"] != 1 {
 		t.Fatalf("tools = %+v, want normalized shell + mcp", d.Tools)
 	}
 }
