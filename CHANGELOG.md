@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-17
+
 ### Added
 
 - `-version` 参数，发布产物通过 `-ldflags -X main.version=...` 注入版本号。
@@ -107,6 +109,7 @@
 - 「刷新」按钮触发一次增量扫描。
 - macOS（arm64）发布工作流，推送 `v*` tag 时自动构建并上传产物。
 
-[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AkisAya/agent-session-viewer/releases/tag/v0.1.0
