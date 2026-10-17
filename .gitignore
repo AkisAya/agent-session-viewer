@@ -4,4 +4,10 @@
 *.db-wal
 *.db-shm
 
+# 测试固件（真实 SQLite 文件，必须入库）
+!internal/wasmtest/testdata/opencode.db
+
+# 浏览器 harness 的组装产物
+internal/wasmtest/browser/dist/
+
 docs/tmp

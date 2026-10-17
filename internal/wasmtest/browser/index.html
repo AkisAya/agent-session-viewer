@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>agent-session-viewer · wasm harness</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      body {
+        margin: 0;
+        padding: 1rem 1.25rem 3rem;
+        max-width: 60rem;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 0.25rem;
+      }
+      p.hint {
+        margin: 0 0 1rem;
+        opacity: 0.7;
+      }
+      #verdict {
+        font-weight: 700;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        background: #8883;
+        margin-bottom: 1rem;
+        white-space: pre-wrap;
+      }
+      #verdict.pass {
+        background: #2e7d3233;
+      }
+      #verdict.fail {
+        background: #c6282833;
+      }
+      pre {
+        margin: 0;
+        padding: 0.75rem;
+        border: 1px solid #8884;
+        border-radius: 4px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+      details {
+        margin-top: 1rem;
+      }
+      summary {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>agent-session-viewer · wasm harness</h1>
+    <p class="hint">
+      Runs the real scanner, cache and query pipeline compiled to js/wasm,
+      against a fixture tree written into the in-memory filesystem in vfs.js,
+      and compares the output with the same golden file the Go test uses.
+    </p>
+    <div id="verdict">waiting…</div>
+    <details open>
+      <summary>pipeline output</summary>
+      <pre id="out"></pre>
+    </details>
+    <details id="errwrap">
+      <summary>stderr</summary>
+      <pre id="err"></pre>
+    </details>
+
+    <!-- Order matters: vfs.js must install globalThis.fs before wasm_exec.js
+         loads, or wasm_exec.js installs its (non-functional) stub instead. -->
+    <script src="vfs.js"></script>
+    <script src="wasm_exec.js"></script>
+    <script>
+      const verdict = document.getElementById("verdict");
+      const out = document.getElementById("out");
+      const err = document.getElementById("err");
+
+      function show(className, message) {
+        verdict.className = className;
+        verdict.textContent = message;
+      }
+
+      (async () => {
+        try {
+          const [golden, wasm] = await Promise.all([
+            fetch("golden.txt").then((r) => {
+              if (!r.ok) throw new Error(`golden.txt: HTTP ${r.status}`);
+              return r.text();
+            }),
+            fetch("app.wasm").then((r) => {
+              if (!r.ok) throw new Error(`app.wasm: HTTP ${r.status}`);
+              return r.arrayBuffer();
+            }),
+          ]);
+
+          const started = performance.now();
+          const go = new Go();
+          const { instance } = await WebAssembly.instantiate(wasm, go.importObject);
+          // run() resolves once the program exits, and wasmcheck exits itself.
+          await go.run(instance);
+          const elapsed = Math.round(performance.now() - started);
+
+          const stdout = globalThis.__vfs.stdout();
+          const stderr = globalThis.__vfs.stderr();
+          out.textContent = stdout;
+          err.textContent = stderr;
+          document.getElementById("errwrap").open = !stderr;
+
+          if (stdout === golden) {
+            show(
+              "pass",
+              `PASS — output matches golden.txt byte for byte ` +
+                `(${stdout.length} bytes, instantiate + run + query ${elapsed} ms)`,
+            );
+          } else {
+            show(
+              "fail",
+              `FAIL — output differs from golden.txt\n` +
+                `golden ${golden.length} bytes, got ${stdout.length} bytes\n` +
+                firstDifference(golden, stdout),
+            );
+          }
+        } catch (e) {
+          show("fail", `ERROR — ${e && e.stack ? e.stack : e}`);
+        }
+      })();
+
+      // Report the first differing line rather than dumping two long blobs.
+      function firstDifference(want, got) {
+        const w = want.split("\n");
+        const g = got.split("\n");
+        for (let i = 0; i < Math.max(w.length, g.length); i++) {
+          if (w[i] !== g[i]) {
+            return `first difference at line ${i + 1}:\n  want: ${w[i]}\n  got:  ${g[i]}`;
+          }
+        }
+        return "identical lines, different bytes (line endings?)";
+      }
+    </script>
+  </body>
+</html>

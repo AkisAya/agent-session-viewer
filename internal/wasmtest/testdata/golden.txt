@@ -1,0 +1,50 @@
+stats sessions=6 messages=11 tokens_in=40 tokens_out=52 cache_read=5 cost=0.2650
+stats agent claude sessions=2 messages=5 tokens_in=0 tokens_out=0 cache_read=0 cost=0.0000
+stats agent codex sessions=1 messages=2 tokens_in=0 tokens_out=0 cache_read=0 cost=0.0000
+stats agent opencode sessions=3 messages=4 tokens_in=40 tokens_out=52 cache_read=5 cost=0.2650
+session claude/sess-b title=hello b preview=hello b cwd=/tmp/demo model=claude-opus-4 msgs=2 tokens=0/0/0 created=2026-02-03T10:00:00Z
+session codex/11111111-1111-1111-1111-111111111111 title=Demo Codex preview=hello codex cwd=/tmp/demo model=gpt-5-codex msgs=2 tokens=0/0/0 created=2026-02-01T11:00:00Z
+session claude/sess-a title=hello claude preview=hello claude cwd=/tmp/demo model=claude-sonnet-4 msgs=3 tokens=0/0/0 created=2026-02-01T10:00:00Z
+session opencode/s3 title=OC fork preview=forked cwd=/tmp/demo model=openai/gpt-y msgs=1 tokens=3/4/0 created=2026-02-02T02:53:20Z
+session opencode/s2 title=OC subagent preview=sub task cwd=/tmp/demo model=openai/gpt-x msgs=1 tokens=7/8/0 created=2026-02-02T02:50:00Z
+session opencode/s1 title=OC session preview=hello oc cwd=/tmp/demo model=openai/gpt-x msgs=2 tokens=30/40/5 created=2026-02-02T02:40:00Z
+project cwd=/tmp/demo count=6 messages=11 tokens=97 cost=0.2650
+trend day=2026-02-01 msgs=3 sessions=2 tokens=0 cost=0.0000
+trend day=2026-02-02 msgs=6 sessions=5 tokens=97 cost=0.2650
+trend day=2026-02-03 msgs=2 sessions=1 tokens=0 cost=0.0000
+model name=openai/gpt-x sessions=2 messages=3 tokens=90 cost=0.2600
+model name=claude-sonnet-4 sessions=1 messages=3 tokens=0 cost=0.0000
+model name=claude-opus-4 sessions=1 messages=2 tokens=0 cost=0.0000
+model name=gpt-5-codex sessions=1 messages=2 tokens=0 cost=0.0000
+model name=openai/gpt-y sessions=1 messages=1 tokens=7 cost=0.0050
+tools total=3
+tool name=shell count=2 sessions=2
+tool name=mcp:github.create_issue count=1 sessions=1
+relation codex/11111111-1111-1111-1111-111111111111 parent=22222222-2222-2222-2222-222222222222 kind=resume
+relation opencode/s1 parent= kind=
+relation opencode/s2 parent=s1 kind=subagent
+relation opencode/s3 parent=s1 kind=fork
+transcript claude/sess-a msgs=5
+  role=user ts=2026-02-01T10:00:00Z text=hello claude
+  role=assistant ts=2026-02-01T10:00:05Z text=hi
+  role=reasoning ts=2026-02-01T10:00:05Z text=think
+  role=tool ts=2026-02-01T10:00:05Z text=[tool: Bash]
+  role=user ts=2026-02-02T10:00:00Z text=second day
+transcript claude/sess-b msgs=3
+  role=user ts=2026-02-03T10:00:00Z text=hello b
+  role=assistant ts=2026-02-03T10:00:05Z text=ok
+  role=tool ts=2026-02-03T10:00:05Z text=[tool: mcp__github__create_issue]
+transcript codex/11111111-1111-1111-1111-111111111111 msgs=2
+  role=user ts=2026-02-01T11:00:05Z text=hello codex
+  role=assistant ts=2026-02-02T11:00:05Z text=hello back
+transcript opencode/s1 msgs=4
+  role=user ts=- text=hello oc
+  role=assistant ts=- text=hi
+  role=tool ts=- text=[tool: shell]
+  role=reasoning ts=- text=think
+transcript opencode/s2 msgs=1
+  role=user ts=- text=sub task
+transcript opencode/s3 msgs=1
+  role=user ts=- text=forked
+rescan sessions=6 messages=11 tokens_in=40 tokens_out=52 cache_read=5 cost=0.2650
+rescan sessions=6

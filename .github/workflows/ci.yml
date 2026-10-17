@@ -36,6 +36,25 @@ jobs:
       - name: go test
         run: go test -race ./...
 
+  # Runs the end-to-end fixture test under a wasm runtime as well. The point is
+  # that internal/wasmtest compares its output against the same golden file in
+  # both builds, so a drift between the native and the wasm path -- including a
+  # silent one in the SQLite driver swap or the memdb mount -- fails here.
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: go test (js/wasm)
+        run: GOOS=js GOARCH=wasm go test -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./internal/wasmtest/
+
   frontend:
     runs-on: ubuntu-latest
     steps:
