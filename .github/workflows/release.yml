@@ -19,7 +19,6 @@ jobs:
           - { goos: darwin, goarch: amd64 }
           - { goos: linux, goarch: amd64 }
           - { goos: linux, goarch: arm64 }
-          - { goos: windows, goarch: amd64 }
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -36,10 +35,8 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           set -e
-          ext=""
-          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
           go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o "build/asv${ext}" .
+            -o "build/asv" .
 
       - name: Archive
         run: |
