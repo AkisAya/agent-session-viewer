@@ -181,9 +181,9 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					modelName = m.Model
 				}
 				if m.Usage != nil {
-					d.TokensIn += m.Usage.InputTokens
-					d.TokensOut += m.Usage.OutputTokens
-					d.CacheRead += m.Usage.CacheReadInputTokens
+					d.Tokens.In += m.Usage.InputTokens
+					d.Tokens.Out += m.Usage.OutputTokens
+					d.Tokens.Cache += m.Usage.CacheReadInputTokens
 				}
 				if !ts.IsZero() {
 					act[ts.Local().Format("2006-01-02")]++
@@ -198,7 +198,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					}
 				}
 			}
-			d.MsgDelta++
+			d.Msgs.Value++
 			if e.Type == "user" && !e.IsSidechain {
 				if txt := plainText(e.Message); txt != "" && firstUser == "" {
 					firstUser = txt
@@ -214,25 +214,29 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	if d.Title == "" && full {
 		d.Title = source.Truncate(firstUser, 80)
 	}
-	d.Preview = source.Truncate(firstUser, 200)
+	// Preview is the session's first user message, which only the beginning of
+	// the file holds. An incremental parse of appended bytes must not overwrite
+	// it with a later prompt.
+	if full {
+		d.Preview = source.Truncate(firstUser, 200)
+	}
 	d.CWD = firstCWD
 	d.Model = modelName
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
-	d.Activity = act
-	d.Tools = tools
+	d.Activity = source.Histogram{Counts: act}
+	d.Tools = source.Histogram{Counts: tools}
 	if full {
-		// A whole-file parse is authoritative: it may overwrite older values
-		// left behind by a previous run (e.g. after the file was rewritten).
-		d.ActivityAbsolute = true
-		d.ToolsAbsolute = true
-		d.MsgAbsolute = true
-		d.MsgCount = d.MsgDelta
-		d.TokensAbsolute = true
+		// A whole-file parse is authoritative for this resource: it may
+		// overwrite values left behind by a previous run (e.g. after the file
+		// was rewritten).
+		d.Activity.Replace = true
+		d.Tools.Replace = true
+		d.Msgs.Replace = true
+		d.Tokens.Replace = true
 	}
 	if sawCost {
-		d.CostAbsolute = true
-		d.Cost = cost
+		d.Cost = source.Amount{Replace: true, Value: cost}
 	}
 
 	if d.ID != "" {
@@ -280,27 +284,23 @@ func contentText(raw json.RawMessage) string {
 
 // Transcript loads the full conversation for a session id, emitting separate
 // messages for user/assistant text, model reasoning and tool calls.
-func (s *Source) Transcript(id string) ([]model.Message, error) {
-	path, err := s.find(id)
-	if err != nil {
-		return nil, err
-	}
-	lines, err := source.ReadAllLines(path)
+func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) {
+	path, err := s.locate(id, hints)
 	if err != nil {
 		return nil, err
 	}
 	var out []model.Message
-	for _, raw := range lines {
+	err = source.ForEachLine(path, func(raw []byte) error {
 		var e entry
 		if json.Unmarshal(raw, &e) != nil {
-			continue
+			return nil
 		}
 		if (e.Type != "user" && e.Type != "assistant") || e.IsSidechain {
-			continue
+			return nil
 		}
 		var m message
 		if json.Unmarshal(e.Message, &m) != nil {
-			continue
+			return nil
 		}
 		ts := parseTime(e.Timestamp)
 		if content := blocksOf(m.Content); content != nil {
@@ -310,13 +310,31 @@ func (s *Source) Transcript(id string) ([]model.Message, error) {
 					out = append(out, model.Message{Role: role, Text: text, Timestamp: ts})
 				}
 			}
-			continue
+			return nil
 		}
 		if text := contentText(m.Content); text != "" {
 			out = append(out, model.Message{Role: e.Type, Text: text, Timestamp: ts})
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
+}
+
+// locate returns the transcript file, preferring a path the index already
+// recorded so the projects tree is not walked for every open.
+func (s *Source) locate(id string, hints []string) (string, error) {
+	want := id + ".jsonl"
+	for _, h := range hints {
+		if filepath.Base(h) == want {
+			if _, err := os.Stat(h); err == nil {
+				return h, nil
+			}
+		}
+	}
+	return s.find(id)
 }
 
 // blocksOf returns the content blocks when content is an array, else nil.

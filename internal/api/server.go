@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"strconv"
@@ -41,6 +42,9 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	if st.Agents == nil {
+		st.Agents = []model.AgentStat{}
 	}
 	writeJSON(w, map[string]any{
 		"agents":   st.Agents,
@@ -188,7 +192,11 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func writeErr(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, fs.ErrNotExist) {
+		status = http.StatusNotFound
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusInternalServerError)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }

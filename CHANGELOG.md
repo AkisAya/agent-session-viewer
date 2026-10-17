@@ -6,6 +6,35 @@
 
 ## [Unreleased]
 
+### Added
+
+- `-version` 参数，发布产物通过 `-ldflags -X main.version=...` 注入版本号。
+- **测试护栏**：「全量解析 == 逐次增量解析」的等价测试，覆盖 Claude 与 Codex 解析器，附带多文件会话、跨 agent 关联、各 parser 的 Transcript 等用例；CI 工作流执行 `gofmt` / `go vet` / `go test -race`。
+- **多平台发布**：发布 macOS arm64、Linux amd64 与 Windows amd64 产物，`CGO_ENABLED=0` 纯静态构建（Windows 为 `.exe`，打包为 `.zip`）。带 `-` 的 tag（如 `v0.3.0-rc1`）自动标记为 prerelease，不会占据 "latest"。
+- **前端错误提示**：请求失败时在底部弹出提示（优先展示服务端返回的 `error` 文本），不再静默失败；看板单个面板失败时保留上一次数据，不再整体清空。
+- **前端资产护栏**：测试校验 `index.html` 引用的资源与各模块的相对 `import` 均存在于 `//go:embed` 的 `web.FS` 中，避免漏加文件只在浏览器里才报错。
+- **前端冒烟测试**：`web/smoke.mjs` 用桩 DOM 在 node 里加载真实模块图，跑通启动流程与列表 / 热力图 / 对话详情（含 markdown）等渲染路径；CI 新增 `frontend` 作业执行它。
+
+### Changed
+
+- **默认仅本机监听**：HTTP 默认绑定 `127.0.0.1`，新增 `-host` 参数（本工具会暴露全部本机对话记录，不应默认对外开放）。
+- **Delta 模型重构**：用 `Counter` / `Usage` / `Amount` / `Histogram` 四个带语义的类型取代原先散落的多个 `*Absolute` 布尔标志，来源只需声明「整文件覆盖」或「增量累加」。
+- **按来源累计用量**：消息数 / Token / 花费改为按 `(agent, 会话, 来源文件)` 存于 `session_usage`，会话行由各来源求和；修复横跨多个 rollout 文件的 Codex 续接会话 token 被后一个文件覆盖的问题。
+- **`index` 包拆分**：930 行的单文件拆为生命周期/扫描、写侧、读侧三部分。
+- **前端拆分**：1239 行的单文件 `app.js` 拆成原生 ES 模块——`util`（格式化/转义/剪贴板/提示）、`state`（状态、URL 同步、主题）、`api`（HTTP 客户端，失败时抛出可展示的错误）与 `list` / `dashboard` / `projects` / `stats` / `detail` 视图模块；仍是零构建，由 Go 直接内嵌分发。
+- **性能**：正文用索引记录的来源路径直接定位并逐行流式读取；写侧改用预编译语句与单条 upsert；OpenCode 在会话表未变化时跳过全部逐消息扫描。
+- **关联会话匹配**：父/子匹配改为按 `(agent, id)` 成对比较，避免不同 agent 复用同一 id 时串链。
+- **Windows 支持**：本工具自己的索引数据库在 Windows 上默认落到 `%LOCALAPPDATA%\agent-session-viewer\index.db`（其他平台仍是 `~/.local/share/...`）；三个 agent 的历史路径本就与平台无关（`~/.claude`、`~/.codex`、`~/.local/share/opencode`），未作改动。
+
+### Fixed
+
+- 增量解析不再用后追加的用户消息覆盖会话摘要 `preview`（摘要只在该来源文件首次全量解析时写入）。
+- 会话清理改为按「来源文件成员关系」判断：一个 Codex 会话横跨多个 rollout 文件时，删除其中一个不再误删整个会话。
+
+### Removed
+
+- 移除仅构建 macOS arm64 的 `release-macos.yml`，由多平台 `release.yml` 取代。
+
 ## [0.2.0] - 2026-10-17
 
 ### Added
@@ -49,7 +78,7 @@
     否则取 `response_item` 的 `function_call` / `custom_tool_call`；两条消息流分别累计后择一，避免重复计数。
   - OpenCode：按 `time_created` 归日，统计 assistant 消息中的 `tool` 内容块。
 - 依赖整理：`go mod tidy`，将 `modernc.org/sqlite` 标记为直接依赖。
-- README 增补数据来源、命令行参数、设计要点与 API 表格，新增界面示例截图（压缩为 `ui_example.webp`）。
+- README 增补数据来源、命令行参数、设计要点与 API 表格。
 
 ### Removed
 

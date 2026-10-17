@@ -35,8 +35,18 @@ func (s *Source) open() (*sql.DB, error) {
 	return sql.Open("sqlite", dsn)
 }
 
+// watermarkKey is a reserved cursor entry holding a cheap fingerprint of the
+// session table, used to skip the expensive message scans when nothing changed.
+const watermarkKey = "__watermark__"
+
 // Scan re-reads session metadata (cheap, indexed queries) and emits
 // authoritative absolute values for every session.
+//
+// When the session table's row count and newest update time are unchanged
+// since the last scan, the per-message work (counts, previews, activity, tool
+// use) is skipped entirely; OpenCode bumps a session's time_updated whenever
+// its content changes, so this is a safe signal for the common "nothing
+// happened since I last looked" case.
 func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (map[string]source.Cursor, error) {
 	next := map[string]source.Cursor{}
 	db, err := s.open()
@@ -46,6 +56,21 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 	defer db.Close()
 	if db.Ping() != nil {
 		return next, nil
+	}
+
+	var sessCount, sessMaxUpdated int64
+	haveFingerprint := db.QueryRow(`SELECT count(*), COALESCE(max(time_updated),0) FROM session_v2`).
+		Scan(&sessCount, &sessMaxUpdated) == nil
+	if haveFingerprint {
+		if wm, ok := prev[watermarkKey]; ok && wm.Size == sessCount && wm.Mtime == sessMaxUpdated {
+			if ids, err := s.sessionIDs(db); err == nil {
+				for _, id := range ids {
+					next[id] = source.Cursor{ID: id}
+				}
+				next[watermarkKey] = wm
+				return next, nil
+			}
+		}
 	}
 
 	msgCounts := s.messageCounts(db)
@@ -78,28 +103,21 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 		// fork_session_id a user-made fork. They behave differently: a
 		// subagent belongs with its main session, a fork is a new line.
 		d := source.Delta{
-			Key:              id,
-			ID:               id,
-			Title:            source.FirstText(title, id),
-			Preview:          previews[id],
-			CWD:              dir,
-			Model:            modelName(modelJSON, agent),
-			CreatedAt:        time.UnixMilli(created),
-			UpdatedAt:        time.UnixMilli(updated),
-			MsgAbsolute:      true,
-			MsgCount:         msgCounts[id],
-			TokensAbsolute:   true,
-			TokensIn:         tin,
-			TokensOut:        tout,
-			CacheRead:        cache,
-			CostAbsolute:     true,
-			Cost:             cost,
-			Activity:         activity[id],
-			ActivityAbsolute: true,
-			Tools:            tools[id],
-			ToolsAbsolute:    true,
-			ParentID:         parentID,
-			Cursor:           source.Cursor{ID: id},
+			Key:       id,
+			ID:        id,
+			Title:     source.FirstText(title, id),
+			Preview:   previews[id],
+			CWD:       dir,
+			Model:     modelName(modelJSON, agent),
+			CreatedAt: time.UnixMilli(created),
+			UpdatedAt: time.UnixMilli(updated),
+			Msgs:      source.Counter{Replace: true, Value: msgCounts[id]},
+			Tokens:    source.Usage{Replace: true, In: tin, Out: tout, Cache: cache},
+			Cost:      source.Amount{Replace: true, Value: cost},
+			Activity:  source.Histogram{Replace: true, Counts: activity[id]},
+			Tools:     source.Histogram{Replace: true, Counts: tools[id]},
+			ParentID:  parentID,
+			Cursor:    source.Cursor{ID: id},
 		}
 		switch {
 		case parentID != "":
@@ -111,7 +129,28 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 		emit(d)
 		next[id] = source.Cursor{ID: id}
 	}
+	if haveFingerprint {
+		next[watermarkKey] = source.Cursor{Size: sessCount, Mtime: sessMaxUpdated}
+	}
 	return next, nil
+}
+
+// sessionIDs lists every session id cheaply, so the fast path can still report
+// the full set of live resources.
+func (s *Source) sessionIDs(db *sql.DB) ([]string, error) {
+	rows, err := db.Query(`SELECT id FROM session_v2`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
 
 // activity buckets every message of a session into its local calendar day.
@@ -279,8 +318,9 @@ func (s *Source) previews(db *sql.DB) map[string]string {
 	return out
 }
 
-// Transcript loads a conversation, preferring session_message.
-func (s *Source) Transcript(id string) ([]model.Message, error) {
+// Transcript loads a conversation, preferring session_message. The hint
+// parameter is unused: OpenCode sessions are keyed by id in its own database.
+func (s *Source) Transcript(id string, _ []string) ([]model.Message, error) {
 	db, err := s.open()
 	if err != nil {
 		return nil, err

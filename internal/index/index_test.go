@@ -25,10 +25,16 @@ func fold(t *testing.T, ix *Index, agent string, d source.Delta) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	if err := applyActivity(tx, agent, d); err != nil {
+	defer tx.Rollback()
+	w, err := newWriter(tx)
+	if err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+	defer w.close()
+	if err := w.applyActivity(agent, d); err != nil {
 		t.Fatalf("applyActivity: %v", err)
 	}
-	if err := applyTools(tx, agent, d); err != nil {
+	if err := w.applyTools(agent, d); err != nil {
 		t.Fatalf("applyTools: %v", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -54,20 +60,20 @@ func TestHistogramPerSource(t *testing.T) {
 
 	// Full parse of the first rollout file.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-02": 3}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 2}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 3}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 2}}})
 	// Full parse of the second file of the same session: additive across src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-b.jsonl",
-		Activity: map[string]int{"2026-01-02": 4}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 1}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 4}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 1}}})
 	// An incremental delta (newly appended bytes only) merges into its src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-03": 2},
-		Tools:    map[string]int{"edit": 1}})
+		Activity: source.Histogram{Counts: map[string]int{"2026-01-03": 2}},
+		Tools:    source.Histogram{Counts: map[string]int{"edit": 1}}})
 	// A full re-parse of file A replaces only A's own rows.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
-		Activity: map[string]int{"2026-01-02": 1}, ActivityAbsolute: true,
-		Tools: map[string]int{"shell": 5}, ToolsAbsolute: true})
+		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 1}},
+		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 5}}})
 
 	days, err := ix.Activity("codex", "/tmp/p")
 	if err != nil {
@@ -123,5 +129,28 @@ func TestRelations(t *testing.T) {
 	}
 	if r, ok := got["kid"]; !ok || r != "subagent" {
 		t.Fatalf("child relation = %q, want subagent", r)
+	}
+}
+
+// Session identity is (agent, id). A parent id that another agent happens to
+// reuse must not pull that other agent's sessions into the result.
+func TestRelationsIsAgentScoped(t *testing.T) {
+	ix := openTest(t)
+	insertSession(t, ix, "opencode", "root", "/tmp/p", "", "")
+	insertSession(t, ix, "opencode", "kid", "/tmp/p", "root", "subagent")
+	// Same directory, same parent id, different agent.
+	insertSession(t, ix, "claude", "claude-kid", "/tmp/p", "root", "subagent")
+
+	rels, err := ix.Relations("opencode", "/tmp/p")
+	if err != nil {
+		t.Fatalf("relations: %v", err)
+	}
+	for _, s := range rels {
+		if s.Agent != "opencode" {
+			t.Fatalf("relations leaked a %s session: %+v", s.Agent, s)
+		}
+	}
+	if len(rels) != 2 {
+		t.Fatalf("relations = %+v, want exactly opencode root and kid", rels)
 	}
 }

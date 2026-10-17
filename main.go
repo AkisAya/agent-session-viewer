@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -22,8 +24,15 @@ import (
 	"github.com/akisaya/agent-session-viewer/web"
 )
 
+// version is overridden at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
-	var cfg config.Config
+	var (
+		cfg         config.Config
+		showVersion bool
+	)
+	flag.StringVar(&cfg.Host, "host", "", "HTTP bind address (default 127.0.0.1; use 0.0.0.0 to expose to the network)")
 	flag.IntVar(&cfg.Port, "port", 0, "HTTP port (default 8787)")
 	flag.StringVar(&cfg.DBPath, "db", "", "cache database path")
 	flag.StringVar(&cfg.ClaudeDir, "claude-dir", "", "Claude Code projects directory")
@@ -32,7 +41,12 @@ func main() {
 	flag.StringVar(&cfg.OpenCodeDB, "opencode-db", "", "OpenCode SQLite database")
 	flag.IntVar(&cfg.WatchSeconds, "watch-interval", 0, "rescan every N seconds (0 = only on demand)")
 	flag.BoolVar(&cfg.Memory, "memory", false, "keep the index in memory instead of a SQLite file (full rescan on every start)")
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
+	if showVersion {
+		fmt.Println("asv " + version)
+		return
+	}
 	cfg.Resolve()
 
 	sources := []source.Source{
@@ -78,7 +92,7 @@ func main() {
 		}()
 	}
 
-	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: api.New(ix, web.FS)}
+	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -86,7 +100,7 @@ func main() {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("listening on http://localhost:%d", cfg.Port)
+	log.Printf("listening on http://%s", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server: %v", err)
 	}

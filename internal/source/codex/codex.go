@@ -228,7 +228,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 				}
 				switch ev.Item.Type {
 				case "UserMessage", "AgentMessage":
-					d.MsgDelta++
+					d.Msgs.Value++
 					if !ts.IsZero() {
 						evAct[ts.Local().Format("2006-01-02")]++
 					}
@@ -297,28 +297,27 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	if len(respTools) == 0 {
 		tools = evTools
 	}
-	d.Activity = act
-	d.Tools = tools
+	d.Activity = source.Histogram{Counts: act}
+	d.Tools = source.Histogram{Counts: tools}
 	if full {
-		// A whole-file parse is authoritative for the histograms.
-		d.ActivityAbsolute = true
-		d.ToolsAbsolute = true
+		// A whole-file parse is authoritative for this resource.
+		d.Activity.Replace = true
+		d.Tools.Replace = true
 		if sumCounts(evAct) == 0 && sumCounts(respAct) > 0 {
-			d.MsgAbsolute = true
-			d.MsgCount = sumCounts(respAct)
+			// Only the response stream carries conversation items here, and
+			// this parse saw the whole file, so it is authoritative.
+			d.Msgs = source.Counter{Replace: true, Value: sumCounts(respAct)}
 		}
 	}
 
 	switch {
 	case sawCumulative:
-		d.TokensAbsolute = true
-		d.TokensIn = cumulative.InputTokens
-		d.CacheRead = cumulative.CachedInputTokens
-		d.TokensOut = cumulative.OutputTokens
+		d.Tokens = source.Usage{Replace: true,
+			In: cumulative.InputTokens, Out: cumulative.OutputTokens, Cache: cumulative.CachedInputTokens}
 	case sawAdditive:
-		d.TokensIn = additive.InputTokens
-		d.CacheRead = additive.CachedInputTokens
-		d.TokensOut = additive.OutputTokens
+		d.Tokens.In = additive.InputTokens
+		d.Tokens.Out = additive.OutputTokens
+		d.Tokens.Cache = additive.CachedInputTokens
 	}
 
 	d.Title = titles[d.ID]
@@ -326,7 +325,11 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	if d.Title == "" && full {
 		d.Title = source.Truncate(prompt, 80)
 	}
-	d.Preview = source.Truncate(prompt, 200)
+	// Preview is the session's first user message: only a full parse sees it,
+	// so an incremental delta must leave the stored preview untouched.
+	if full {
+		d.Preview = source.Truncate(prompt, 200)
+	}
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
 	d.Cursor.ID = d.ID
@@ -361,48 +364,47 @@ func (s *Source) loadIndex() map[string]string {
 
 // Transcript loads the full conversation for a session id. A session may span
 // multiple rollout files (resumed sessions), so all matching files are merged
-// in timestamp order.
-func (s *Source) Transcript(id string) ([]model.Message, error) {
-	paths, err := s.find(id)
-	if err != nil {
-		return nil, err
+// in timestamp order. hints are the rollout paths the index recorded.
+func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) {
+	paths := s.locateAll(id, hints)
+	if len(paths) == 0 {
+		return nil, os.ErrNotExist
 	}
 	var evOut, respOut []model.Message
 	for _, path := range paths {
-		lines, err := source.ReadAllLines(path)
-		if err != nil {
-			continue
-		}
-		for _, raw := range lines {
+		err := source.ForEachLine(path, func(raw []byte) error {
 			var l line
 			if json.Unmarshal(raw, &l) != nil {
-				continue
+				return nil
 			}
 			ts := parseTime(l.Timestamp)
 			switch l.Type {
 			case "event_msg":
 				var ev eventMsg
 				if json.Unmarshal(l.Payload, &ev) != nil || ev.Type != "item_completed" || ev.Item == nil {
-					continue
+					return nil
 				}
-				role, text := codexItemMessage(ev.Item)
-				if text != "" {
+				if role, text := codexItemMessage(ev.Item); text != "" {
 					evOut = append(evOut, model.Message{Role: role, Text: text, Timestamp: ts})
 				}
 			case "response_item":
 				var ri responseItem
 				if json.Unmarshal(l.Payload, &ri) != nil || ri.Type != "message" {
-					continue
+					return nil
 				}
 				if ri.Role != "user" && ri.Role != "assistant" {
-					continue
+					return nil
 				}
 				text := respText(&ri)
 				if text == "" || (ri.Role == "user" && isSynthetic(text)) {
-					continue
+					return nil
 				}
 				respOut = append(respOut, model.Message{Role: ri.Role, Text: text, Timestamp: ts})
 			}
+			return nil
+		})
+		if err != nil {
+			continue
 		}
 	}
 	out := evOut
@@ -411,6 +413,28 @@ func (s *Source) Transcript(id string) ([]model.Message, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Timestamp.Before(out[j].Timestamp) })
 	return out, nil
+}
+
+// locateAll resolves the rollout files of a session, preferring the paths the
+// index already recorded and falling back to a tree walk.
+func (s *Source) locateAll(id string, hints []string) []string {
+	var found []string
+	for _, h := range hints {
+		if idFromName(filepath.Base(h)) == id {
+			if _, err := os.Stat(h); err == nil {
+				found = append(found, h)
+			}
+		}
+	}
+	if len(found) == 0 {
+		paths, err := s.find(id)
+		if err != nil {
+			return nil
+		}
+		return paths
+	}
+	sort.Strings(found)
+	return found
 }
 
 // codexItemMessage maps an event item to a display role and text.
