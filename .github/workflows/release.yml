@@ -37,7 +37,7 @@ jobs:
         run: |
           set -e
           ext=""
-          [ "$GOOS" = "windows" ] && ext=".exe"
+          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
           go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
             -o "build/asv${ext}" .
 
