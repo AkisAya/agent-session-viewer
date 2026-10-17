@@ -65,6 +65,7 @@ internal/source/opencode OpenCode SQLite 解析
 internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API）
 internal/api            HTTP API
 web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块
+web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
 ```
 
 ## API

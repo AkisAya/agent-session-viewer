@@ -35,3 +35,20 @@ jobs:
 
       - name: go test
         run: go test -race ./...
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # No build step and no browser runner: web/smoke.mjs loads the real
+      # module graph against a stubbed DOM and exercises the boot path and the
+      # main renderers.
+      - name: frontend smoke test
+        run: node web/smoke.mjs
