@@ -1,6 +1,6 @@
 # Agent Session Viewer
 
-一个轻量的本地工具，用于浏览本机上 **Claude Code**、**Codex** 和 **OpenCode** 的历史对话记录。
+一个轻量的本地工具，用于浏览本机上 **Claude Code**、**Codex**、**OpenCode** 和 **DeepSeek Harness（DSH）** 的历史对话记录。
 
 - 单个 Go 二进制，内嵌前端页面
 - 增量索引：只扫描新增内容，二次启动几乎瞬时
@@ -23,8 +23,9 @@ go build -o asv .
 | Claude Code | `~/.claude/projects/<编码路径>/<sessionId>.jsonl` | 标题取 `custom-title` / `ai-title` / `last-prompt`，费用取 `cost-state`，思考取 `thinking` 块，工具调用取 `tool_use` 块，活动按行内 `timestamp` 归日 |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | 标题优先取 `session_index.jsonl`，模型取 `turn_context`，Token 取累计 `token_count`，回退解析 `response_item`；工具调用优先取 `event_msg` 的 `CommandExecution`/`WebSearch`/`McpToolCall`，否则取 `response_item` 的 `function_call`/`custom_tool_call`；`parent_thread_id` 非自身时记为续接 |
 | OpenCode | `~/.local/share/opencode/opencode.db` | 只读打开，读取 `session_v2` 与 `session_message`（兼容旧的 `message`/`part`）；活动按 `time_created` 归日，工具调用取 assistant 消息中的 `tool` 内容块；`parent_id` 记为子代理（`subagent`），`fork_session_id` 记为分叉（`fork`） |
+| DSH | `~/.dsh/sessions/<编码 cwd>/<sessionId>/session.vN.jsonl.zstd` | 读取 DSH 的追加式会话日志；`session.vN.jsonl`（未压缩）同样支持。标题取 `session/title`，模型取 `request/context` / assistant 消息，Token 取每条 `assistant/message` 的 `usage`（输入 / 输出 / 缓存读）；真实用户消息只认 `source.kind = user`，忽略注入的 runtime-context / skill-catalog 等上下文；工具调用取 `tool/call`；`parentSession` + `origin: subagent` 记为子代理 |
 
-三个 agent 的历史路径在各平台一致：Windows 上 `~` 即 `%USERPROFILE%`，OpenCode 也沿用 Unix 风格的 `~/.local/share/opencode`。只有本工具自己的索引数据库遵循平台习惯——Windows 下默认 `%LOCALAPPDATA%\agent-session-viewer\index.db`，其他平台 `~/.local/share/agent-session-viewer/index.db`（`-db` 可覆盖）。
+四个 agent 的历史路径在各平台一致：Windows 上 `~` 即 `%USERPROFILE%`，OpenCode 也沿用 Unix 风格的 `~/.local/share/opencode`。DSH 默认读取 `~/.dsh/sessions`，设置了 `DSH_HOME` 时改为 `$DSH_HOME/sessions`。只有本工具自己的索引数据库遵循平台习惯——Windows 下默认 `%LOCALAPPDATA%\agent-session-viewer\index.db`，其他平台 `~/.local/share/agent-session-viewer/index.db`（`-db` 可覆盖）。
 
 ## 命令行参数
 
@@ -36,6 +37,7 @@ go build -o asv .
 -codex-dir string      Codex sessions 目录
 -codex-index string    Codex session_index.jsonl 路径
 -opencode-db string    OpenCode 数据库路径
+-dsh-dir string        DSH sessions 目录（默认 ~/.dsh/sessions，遵循 DSH_HOME）
 -watch-interval int    每隔 N 秒自动增量扫描（0 = 仅按需，默认）
 -memory                索引只保存在内存中，不创建也不读写缓存数据库（每次启动全量扫描）
 -version               打印版本号后退出
@@ -44,6 +46,7 @@ go build -o asv .
 ## 设计要点
 
 - **增量索引**：缓存数据库（SQLite）为每个源文件记录 `size` / `mtime` / 解析偏移量。文件未变化时整文件跳过；有追加时只解析新增字节并累加统计。
+- **DSH 帧级增量**：DSH 的 `.zstd` 日志是「头帧 + 每个追加批次一帧」的独立 Zstandard 帧拼接。解析器按帧边界推进游标，只解压新增帧；崩溃留下的尾部残帧会被保留到下次扫描，不会误当成损坏文件。
 - **按需加载正文**：列表只读缓存，对话内容在点击某个会话时才从源文件读取，不进常驻内存。
 - **稳定 ID**：解析出的 session id 随游标一起持久化，保证增量扫描时不会因为读不到文件头而错配。
 - **只读访问**：读取 OpenCode 数据库与磁盘文件均为只读，不影响正在运行的 agent。
@@ -52,7 +55,7 @@ go build -o asv .
 - **按来源累计用量**：消息数 / Token / 花费以 `(agent, 会话, 来源文件)` 为主键存于 `session_usage`，会话行由各来源求和得出，因此一个横跨多个 rollout 文件的 Codex 续接会话会正确累加而不是相互覆盖。每个来源单独记录「整文件解析 = 覆盖」还是「增量解析 = 累加」，避免手工组合多个绝对/相对标志。
 - **活动 / 工具直方图**：`activity`（按天消息数）与 `tool_use`（按工具调用次数）同样以 `(agent, 会话, 来源文件)` 为主键存储。整文件解析视为该来源文件的绝对值（直接替换），增量解析只累加新增行——因为一个 Codex 会话可能横跨多个 rollout 文件，统计必须落到来源文件维度，否则后解析的文件会覆盖先前的统计。来源文件消失且会话再无其他来源时一并清理。
 - **正文按需 + 来源提示**：对话内容在点击某个会话时才读取，并使用索引里记录的来源路径直接定位（回退到目录扫描），逐行流式解析，不进常驻内存。
-- **工具名归一化**：三个 agent 的工具命名各不相同（Claude 的 `Bash`、Codex 的 `exec_command`、OpenCode 的 `shell`/`bash`），在解析阶段统一映射到规范名，MCP 工具保留为 `mcp:server.tool`。
+- **工具名归一化**：四个 agent 的工具命名各不相同（Claude 的 `Bash`、Codex 的 `exec_command`、OpenCode 的 `shell`/`bash`、DSH 的 `bash`），在解析阶段统一映射到规范名，MCP 工具保留为 `mcp:server.tool`。
 
 ## 项目结构
 
@@ -64,6 +67,7 @@ internal/source         数据源接口与增量 Delta 定义
 internal/source/claude  Claude Code 解析
 internal/source/codex   Codex 解析（跨 rollout 文件合并对话）
 internal/source/opencode OpenCode SQLite 解析
+internal/source/dsh     DSH 会话日志解析（zstd 帧级增量）
 internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API）
 internal/api            HTTP API
 web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块

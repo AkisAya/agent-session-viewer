@@ -17,6 +17,7 @@ type Config struct {
 	CodexDir     string
 	CodexIndex   string
 	OpenCodeDB   string
+	DSHDir       string
 	WatchSeconds int  // 0 = no periodic scanning
 	Memory       bool // keep the index in memory instead of a SQLite file
 }
@@ -64,6 +65,15 @@ func (c *Config) resolve(goos string, getenv func(string) string) {
 		// every platform — Windows included — so this needs no per-OS branch.
 		// (See https://github.com/sst/opencode: ~/.local/share/opencode.)
 		c.OpenCodeDB = filepath.Join(home, ".local", "share", "opencode", "opencode.db")
+	}
+	if c.DSHDir == "" {
+		// DSH keeps every profile under $DSH_HOME (default ~/.dsh). Its
+		// session logs live in the shared sessions/ subtree.
+		dshHome := getenv("DSH_HOME")
+		if dshHome == "" {
+			dshHome = filepath.Join(home, ".dsh")
+		}
+		c.DSHDir = filepath.Join(dshHome, "sessions")
 	}
 }
 

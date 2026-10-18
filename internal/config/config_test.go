@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveDefaults(t *testing.T) {
+	t.Setenv("DSH_HOME", "")
 	var c Config
 	c.Resolve()
 
@@ -28,6 +29,7 @@ func TestResolveDefaults(t *testing.T) {
 		{"codex", c.CodexDir, filepath.Join(home, ".codex", "sessions")},
 		{"codex index", c.CodexIndex, filepath.Join(home, ".codex", "session_index.jsonl")},
 		{"opencode", c.OpenCodeDB, filepath.Join(home, ".local", "share", "opencode", "opencode.db")},
+		{"dsh", c.DSHDir, filepath.Join(home, ".dsh", "sessions")},
 	} {
 		if tc.got != tc.want {
 			t.Fatalf("%s dir = %q, want %q", tc.name, tc.got, tc.want)
@@ -40,6 +42,17 @@ func TestResolveKeepsExplicitValues(t *testing.T) {
 	c.Resolve()
 	if c.Host != "0.0.0.0" || c.Port != 9000 {
 		t.Fatalf("explicit values overwritten: host=%q port=%d", c.Host, c.Port)
+	}
+}
+
+// TestResolveDSHHome pins the DSH_HOME override: a non-default DSH installation
+// keeps its profile root (and therefore its sessions) elsewhere.
+func TestResolveDSHHome(t *testing.T) {
+	t.Setenv("DSH_HOME", filepath.Join("/custom", "dsh"))
+	var c Config
+	c.Resolve()
+	if want := filepath.Join("/custom", "dsh", "sessions"); c.DSHDir != want {
+		t.Fatalf("dsh dir = %q, want %q", c.DSHDir, want)
 	}
 }
 
@@ -103,8 +116,9 @@ func TestResolveWindowsKeepsAgentPathsHomeRelative(t *testing.T) {
 		"claude":   filepath.Join(home, ".claude", "projects"),
 		"codex":    filepath.Join(home, ".codex", "sessions"),
 		"opencode": filepath.Join(home, ".local", "share", "opencode", "opencode.db"),
+		"dsh":      filepath.Join(home, ".dsh", "sessions"),
 	}
-	got := map[string]string{"db": c.DBPath, "claude": c.ClaudeDir, "codex": c.CodexDir, "opencode": c.OpenCodeDB}
+	got := map[string]string{"db": c.DBPath, "claude": c.ClaudeDir, "codex": c.CodexDir, "opencode": c.OpenCodeDB, "dsh": c.DSHDir}
 	for name, g := range got {
 		if g != want[name] {
 			t.Errorf("%s = %q, want %q", name, g, want[name])

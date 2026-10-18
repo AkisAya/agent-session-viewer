@@ -12,6 +12,7 @@ import (
 	"github.com/akisaya/agent-session-viewer/internal/source"
 	"github.com/akisaya/agent-session-viewer/internal/source/claude"
 	"github.com/akisaya/agent-session-viewer/internal/source/codex"
+	"github.com/akisaya/agent-session-viewer/internal/source/dsh"
 )
 
 func newIndex(t *testing.T, sources ...source.Source) *Index {
@@ -176,6 +177,29 @@ func TestCodexIncrementalMatchesFull(t *testing.T) {
 			`{"type":"response_item","timestamp":"2026-02-02T12:00:07Z","payload":{"type":"function_call","name":"apply_patch"}}`,
 		},
 		filepath.Join("2026", "02", "01", "rollout-2026-02-01T11-00-00-cx1.jsonl"))
+}
+
+// DSH stores the header first and then appends one durable batch at a time.
+// The raw (.jsonl) variant exercises the same accumulator as the compressed
+// reader, so the full-vs-incremental index state must match exactly.
+func TestDSHIncrementalMatchesFull(t *testing.T) {
+	assertIncrementalMatchesFull(t,
+		func(dir string) source.Source { return &dsh.Source{Root: dir} },
+		"dsh",
+		[]string{
+			`{"type":"session","version":4,"id":"session-abc","createdAt":1767225600000,"cwd":"/tmp/project","isSeeded":false}`,
+			`{"type":"user/message","seq":8,"time":1767225601000,"data":{"content":[{"type":"text","text":"hello dsh"}],"source":{"kind":"user"}}}`,
+			`{"type":"user/message","seq":9,"time":1767225601000,"data":{"content":[{"type":"text","text":"runtime context"}],"source":{"kind":"runtime-context"}}}`,
+			`{"type":"assistant/message","seq":10,"time":1767225602000,"data":{"message":{"role":"assistant","content":[{"type":"text","text":"hi"}],"source":{"provider":"deepseek-account","model":"deepseek-flash"}},"usage":{"inputTokens":10,"outputTokens":5,"cacheReadTokens":100}}}`,
+			`{"type":"tool/call","seq":11,"time":1767225602000,"data":{"callId":"c1","name":"bash","arguments":"{}"}}`,
+		},
+		[]string{
+			`{"type":"session/title","seq":20,"time":1767225603000,"data":{"title":"DSH session"}}`,
+			`{"type":"user/message","seq":21,"time":1767225604000,"data":{"content":[{"type":"text","text":"follow up"}],"source":{"kind":"user"}}}`,
+			`{"type":"assistant/message","seq":22,"time":1767225605000,"data":{"message":{"role":"assistant","content":[{"type":"text","text":"done"}],"source":{"provider":"deepseek-account","model":"deepseek-flash"}},"usage":{"inputTokens":2,"outputTokens":3,"cacheReadTokens":4}}}`,
+			`{"type":"tool/call","seq":23,"time":1767225605000,"data":{"callId":"c2","name":"read","arguments":"{}"}}`,
+		},
+		filepath.Join("--tmp-project--", "session-abc", "session.v4.jsonl"))
 }
 
 // A resumed Codex session spans several rollout files; each file reports its

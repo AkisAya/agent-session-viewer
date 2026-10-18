@@ -12,6 +12,7 @@
   --claude: #d97757;
   --codex: #10a37f;
   --opencode: #a78bfa;
+  --dsh: #6b8cff;
   --shadow: rgba(0, 0, 0, .5);
   --mark: #3a3320;
   --mark-fg: #ffe08a;
@@ -31,6 +32,7 @@
   --claude: #c2603f;
   --codex: #0d8a68;
   --opencode: #7c5cd6;
+  --dsh: #3f63e0;
   --shadow: rgba(20, 25, 40, .28);
   --mark: #ffe9a8;
   --mark-fg: #6a4b00;
@@ -269,6 +271,7 @@ body {
 .card.agent-claude { --agent: var(--claude); }
 .card.agent-codex { --agent: var(--codex); }
 .card.agent-opencode { --agent: var(--opencode); }
+.card.agent-dsh { --agent: var(--dsh); }
 
 .card-title {
   font-weight: 600;
@@ -318,6 +321,11 @@ body {
   background: color-mix(in srgb, var(--opencode) 14%, var(--panel));
   color: color-mix(in srgb, var(--opencode) 78%, var(--fg));
   border-color: color-mix(in srgb, var(--opencode) 28%, transparent);
+}
+.badge.dsh {
+  background: color-mix(in srgb, var(--dsh) 14%, var(--panel));
+  color: color-mix(in srgb, var(--dsh) 78%, var(--fg));
+  border-color: color-mix(in srgb, var(--dsh) 28%, transparent);
 }
 
 .tok { color: var(--fg); opacity: .8; }

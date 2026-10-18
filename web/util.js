@@ -8,7 +8,7 @@ export const $ = (id) => document.getElementById(id);
 // esc escapes the characters that matter in HTML text and attribute values.
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-export const TAB_LABEL = { "": "全部", claude: "Claude", codex: "Codex", opencode: "OpenCode" };
+export const TAB_LABEL = { "": "全部", claude: "Claude", codex: "Codex", opencode: "OpenCode", dsh: "DSH" };
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /* ---------- motion preference ---------- */

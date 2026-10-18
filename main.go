@@ -1,5 +1,5 @@
-// Command asv serves a local web UI over Claude Code, Codex and
-// OpenCode conversation history.
+// Command asv serves a local web UI over Claude Code, Codex, OpenCode and
+// DeepSeek Harness conversation history.
 package main
 
 import (
@@ -20,6 +20,7 @@ import (
 	"github.com/akisaya/agent-session-viewer/internal/source"
 	"github.com/akisaya/agent-session-viewer/internal/source/claude"
 	"github.com/akisaya/agent-session-viewer/internal/source/codex"
+	"github.com/akisaya/agent-session-viewer/internal/source/dsh"
 	"github.com/akisaya/agent-session-viewer/internal/source/opencode"
 	"github.com/akisaya/agent-session-viewer/web"
 )
@@ -39,6 +40,7 @@ func main() {
 	flag.StringVar(&cfg.CodexDir, "codex-dir", "", "Codex sessions directory")
 	flag.StringVar(&cfg.CodexIndex, "codex-index", "", "Codex session index file")
 	flag.StringVar(&cfg.OpenCodeDB, "opencode-db", "", "OpenCode SQLite database")
+	flag.StringVar(&cfg.DSHDir, "dsh-dir", "", "DeepSeek Harness sessions directory")
 	flag.IntVar(&cfg.WatchSeconds, "watch-interval", 0, "rescan every N seconds (0 = only on demand)")
 	flag.BoolVar(&cfg.Memory, "memory", false, "keep the index in memory instead of a SQLite file (full rescan on every start)")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
@@ -53,6 +55,7 @@ func main() {
 		&claude.Source{Root: cfg.ClaudeDir},
 		&codex.Source{Root: cfg.CodexDir, Index: cfg.CodexIndex},
 		&opencode.Source{Path: cfg.OpenCodeDB},
+		&dsh.Source{Root: cfg.DSHDir},
 	}
 
 	ix, err := index.Open(index.Options{Path: cfg.DBPath, Memory: cfg.Memory}, sources...)

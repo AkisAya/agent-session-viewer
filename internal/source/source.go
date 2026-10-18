@@ -80,7 +80,7 @@ type Delta struct {
 
 // Source is implemented by every agent-specific parser.
 type Source interface {
-	// Name is the stable agent identifier: "claude" | "codex" | "opencode".
+	// Name is the stable agent identifier: "claude" | "codex" | "opencode" | "dsh".
 	Name() string
 	// Scan walks the source and emits a Delta for every session that changed
 	// since the provided cursors. It returns the full set of cursors it saw

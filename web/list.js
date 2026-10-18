@@ -36,10 +36,15 @@ export async function loadSessions() {
 }
 
 // resumeCommand returns the CLI command that reopens a session in its agent.
+// DSH has no stable command-line resume entry point, so its cards omit the
+// button instead of copying a command that cannot work.
 function resumeCommand(s) {
-  if (s.agent === "claude") return `claude --resume ${s.id}`;
-  if (s.agent === "codex") return `codex resume ${s.id}`;
-  return `opencode --session ${s.id}`;
+  switch (s.agent) {
+    case "claude": return `claude --resume ${s.id}`;
+    case "codex": return `codex resume ${s.id}`;
+    case "opencode": return `opencode --session ${s.id}`;
+    default: return "";
+  }
 }
 
 export function renderList(rows) {
@@ -85,7 +90,7 @@ export function renderList(rows) {
             ${s.cost ? `<span>$${Number(s.cost).toFixed(2)}</span>` : ""}
             <span class="time" title="${esc(fmtDate(s.updatedAt))}">${fmtTime(s.updatedAt)}</span>
           </div>
-          <button type="button" class="card-resume" data-cmd="${esc(cmd)}" title="复制到剪贴板：${esc(cmd)}">⧉ resume</button>
+          ${cmd ? `<button type="button" class="card-resume" data-cmd="${esc(cmd)}" title="复制到剪贴板：${esc(cmd)}">⧉ resume</button>` : ""}
         </div>
       </div>`;
     })

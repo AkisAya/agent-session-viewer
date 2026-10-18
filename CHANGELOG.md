@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
+### Added
+
+- **DeepSeek Harness（DSH）支持**：新增 `dsh` 数据源，读取 `~/.dsh/sessions`（设置 `DSH_HOME` 时读取 `$DSH_HOME/sessions`）下的追加式会话日志，默认 `-dsh-dir` 可覆盖。
+  - 兼容 DSH 的 `.zstd` 压缩日志与未压缩 `.jsonl`；压缩日志按「头帧 + 每个追加批次一帧」做帧级增量解析，只解压新增帧，并能从崩溃留下的尾部残帧恢复。
+  - 标题取 `session/title`，模型取 `request/context` / assistant 消息，Token 取 `assistant/message.usage`，工具调用取 `tool/call` 并归一化；只统计真实用户消息（忽略注入的 runtime-context / skill-catalog 等上下文）。
+  - `parentSession` + `origin: subagent` 解析为子代理关系；详情页展示文本、思考与工具调用。
+  - 前端新增 DSH 标签与配色；DSH 没有稳定的命令行恢复入口，因此不显示 resume 按钮。
+
 ### Changed
 
 - **发布说明自动化**：`release.yml` 改为用 `scripts/release-notes.sh` 从 `CHANGELOG.md` 抽取当前 tag 的版本段落作为 Release 正文，并附 `**Full changelog:** <上一个稳定 tag>...<当前 tag>` 的 compare 链接（rc tag 若还没有自己的段落则回退到 `Unreleased`）。
