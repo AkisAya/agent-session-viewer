@@ -1,0 +1,23 @@
+docs/DESIGN.md
+  s_658a82a2f81523::t_badb59fb99c241 1-51
+README.md
+  s_658a82a2f81523::t_963548cb64cbe8 27-28
+  s_658a82a2f81523::t_4960f6ea92fbfb 39-46
+  s_658a82a2f81523::t_3b27dd18daf3fd 80-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "732460ee67cae9255d02d46d2b9654354a5a57bb",
+  "prompts": {},
+  "sessions": {
+    "s_658a82a2f81523": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eac6c34e8ffezW1tfkQIhUHCkT",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
