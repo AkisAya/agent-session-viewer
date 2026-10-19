@@ -1,0 +1,21 @@
+README.md
+  s_29053315165377::t_3f106f4b039b28 35-40
+scripts/install.sh
+  s_29053315165377::t_10983f053547db 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "682ac553d45366562cbfeaeb1eba0e2af9b6ebc6",
+  "prompts": {},
+  "sessions": {
+    "s_29053315165377": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eac380f76ffehpoLBMZZnjXGfJ",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
