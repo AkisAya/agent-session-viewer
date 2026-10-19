@@ -1,0 +1,106 @@
+internal/source/dsh/dsh.go
+  s_735279e1ad9368::t_327f5560a7cedd 260
+  s_735279e1ad9368::t_8b9584ba942071 282
+  s_735279e1ad9368::t_898301b96851d2 303
+  s_735279e1ad9368::t_ae8501a8bf1d6f 393
+  s_735279e1ad9368::t_67eeb9ea3c576c 675-682
+internal/source/source.go
+  s_735279e1ad9368::t_e7c43a5b6335ba 67
+internal/source/codex/codex.go
+  s_735279e1ad9368::t_53267890d8f101 428
+  s_735279e1ad9368::t_084bdeab2cdd48 388-398
+  s_735279e1ad9368::t_8e9c79ca46dd52 203-204
+  s_735279e1ad9368::t_29dec216d4d6fa 308
+  s_735279e1ad9368::t_3b133dd72a63f2 435-445
+web/detail.js
+  s_735279e1ad9368::t_30e01a7521b21b 240-242
+  s_735279e1ad9368::t_5465b284325cc4 34-47,50
+  s_735279e1ad9368::t_eba626c21635db 91
+  s_735279e1ad9368::t_d59c88e607928e 199,205-206
+  s_735279e1ad9368::t_e06b7ddab3411c 197-198
+  s_735279e1ad9368::t_60a942ece97a60 60
+  s_735279e1ad9368::t_3dd2b61fda40f0 204
+web/list.js
+  s_735279e1ad9368::t_d461884588c39a 88
+web/smoke.mjs
+  s_735279e1ad9368::t_a0eab96890c9b2 138
+  s_735279e1ad9368::t_ec06bf5d5f154e 172
+  s_735279e1ad9368::t_68e2c8af63eaec 131
+  s_735279e1ad9368::t_0b420472ace25f 180-181
+  s_735279e1ad9368::t_169b32170bcb61 86
+  s_735279e1ad9368::t_8fad98a9f45965 178
+internal/index/store.go
+  s_735279e1ad9368::t_9c598d40e8fb95 46-47,50
+  s_735279e1ad9368::t_b01ac393acc117 108-109
+  s_735279e1ad9368::t_70690e8eb23242 41-42
+  s_735279e1ad9368::t_2f5f236da9804b 56-57
+  s_735279e1ad9368::t_ac5c158d132e8f 170,173
+  s_735279e1ad9368::t_e9c4a0340d3683 198
+web/style.css
+  s_735279e1ad9368::t_c505259d23e470 654-668
+  s_735279e1ad9368::t_2f93cb1a6ed5d4 806-807
+internal/index/incremental_test.go
+  s_735279e1ad9368::t_1d564161d39bdf 99-100
+  s_735279e1ad9368::t_1ce85a0010e4c9 197-202
+internal/source/claude/claude_test.go
+  s_735279e1ad9368::t_c4945dcfed20f6 112-119
+  s_735279e1ad9368::t_498a59ae00b46b 86-87
+  s_735279e1ad9368::t_0ade7b5f7a21bf 102-111,120-128
+internal/source/opencode/opencode.go
+  s_735279e1ad9368::t_1d548d7b1b1f6c 417
+  s_735279e1ad9368::t_7f405ad437926d 145,148,158,160,163-166,168
+  s_735279e1ad9368::t_d8acaa561ac587 140-144,146-147,149-157,159,161-162,167,169-172
+  s_735279e1ad9368::t_7daafb11705a70 116
+  s_735279e1ad9368::t_b2f5d00ec3be6a 491,494-496
+  s_735279e1ad9368::t_a1911ec765b975 416
+  s_735279e1ad9368::t_81b93e1a5c44d4 476-483
+  s_735279e1ad9368::t_3916439fa441b1 80
+internal/index/index.go
+  s_735279e1ad9368::t_4833ef2b7aa88a 48
+  s_735279e1ad9368::t_424f9070e78b22 147-148
+  s_735279e1ad9368::t_b469fac88870a3 156-158
+  s_735279e1ad9368::t_834e0572ff7c5b 102
+internal/model/model.go
+  s_735279e1ad9368::t_a01b713eda4e91 32-34
+  s_735279e1ad9368::t_04a8a2bf9fc946 21
+internal/index/query.go
+  s_735279e1ad9368::t_dc725d69f9f332 415
+  s_735279e1ad9368::t_2a45851ce8aba7 64-65
+  s_735279e1ad9368::t_b382fb943b126d 397
+internal/source/opencode/opencode_test.go
+  s_735279e1ad9368::t_3c0abb336ed9bc 77-79
+  s_735279e1ad9368::t_d76d20c7ac4f8f 97
+  s_735279e1ad9368::t_0be9cb5747c242 37-38
+internal/source/dsh/dsh_test.go
+  s_735279e1ad9368::t_0b67d5fb383a03 334-336
+  s_735279e1ad9368::t_3393a5e8c55cc1 308-333,337-341,343-346,356-358
+  s_735279e1ad9368::t_eff5ee3f2a9dba 342,347-355
+internal/source/codex/codex_test.go
+  s_735279e1ad9368::t_3e5262c8962fdb 56-66,75-83
+  s_735279e1ad9368::t_e4767a3c50f7a3 67-74
+  s_735279e1ad9368::t_9eaa07c55a5108 7-8
+internal/source/claude/claude.go
+  s_735279e1ad9368::t_7602c81ce23256 188-191
+  s_735279e1ad9368::t_2f2d38649ba406 25,27-30,35-40
+  s_735279e1ad9368::t_787e83bd1fa545 26
+  s_735279e1ad9368::t_d3dd995aa71c9e 255
+  s_735279e1ad9368::t_c3cbf9d8e1ad99 31-34
+  s_735279e1ad9368::t_4a67b33258bf75 200-203
+  s_735279e1ad9368::t_1af2689ea606a6 326-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "4cf385df20912e8f30c4312a0adff9047ff5bcfd",
+  "prompts": {},
+  "sessions": {
+    "s_735279e1ad9368": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eadc39c8bffe7IqOCp0NwLiAVq",
+        "model": "claude-kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
