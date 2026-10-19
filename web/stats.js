@@ -3,7 +3,7 @@
 import { $, esc, fmtNum, fmtTime, fmtDate, TAB_LABEL, notify } from "./util.js";
 import { state } from "./state.js";
 import { api, scopeParams } from "./api.js";
-import { renderAgentCompare, renderKPI } from "./dashboard.js";
+import { renderAgentCompare, renderKPI, cacheRate } from "./dashboard.js";
 
 export async function loadStats() {
   try {
@@ -14,9 +14,10 @@ export async function loadStats() {
     const tin = t.tokensIn || 0;
     const tout = t.tokensOut || 0;
     const cache = t.cacheRead || 0;
+    const rate = (cacheRate(t) * 100).toFixed(1);
     $("stats").innerHTML = [
       `<span class="stat">共 <b>${t.sessions || 0}</b> 会话</span>`,
-      `<span class="stat" title="输入 ${fmtNum(tin)} · 输出 ${fmtNum(tout)} · 缓存读 ${fmtNum(cache)}">Tokens <b class="up">↑${fmtNum(tin)}</b> <b class="down">↓${fmtNum(tout)}</b> <b class="cache">⚡${fmtNum(cache)}</b></span>`,
+      `<span class="stat" title="输入 ${fmtNum(tin)} · 输出 ${fmtNum(tout)} · 缓存读 ${fmtNum(cache)} · 缓存命中率 ${rate}%（缓存读 / (输入 + 缓存读)）">Tokens <b class="up">↑${fmtNum(tin)}</b> <b class="down">↓${fmtNum(tout)}</b> <b class="cache">⚡${fmtNum(cache)}</b> <b class="cache">${rate}%</b></span>`,
       `<span class="stat">花费 <b>$${(t.cost || 0).toFixed(2)}</b></span>`,
     ].join("");
     state.lastScan = d.lastScan || "";

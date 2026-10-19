@@ -6,6 +6,22 @@
 - 增量索引：只扫描新增内容，二次启动几乎瞬时
 - 空闲低占用，可选主动轮询/手动刷新来更新信息
 
+## 截图
+
+**会话列表**：按 agent / 项目筛选，卡片显示模型、消息数、Token、花费与 compact 次数
+
+<img src="docs/screenshots/list.webp" width="100%" alt="会话列表">
+
+**统计看板**：概览卡片、活动热力图与趋势、模型 / 工具排行、Agent 对比与项目排行
+
+<img src="docs/screenshots/dashboard.webp" width="100%" alt="统计看板">
+
+**对话详情**：Markdown 渲染、右侧消息大纲、上下文压缩标记与 Token 明细
+
+<img src="docs/screenshots/detail.webp" width="100%" alt="对话详情">
+
+<sub>截图使用合成的演示数据，可用 <code>node scripts/screenshots.mjs</code> 重新生成。</sub>
+
 ## 快速开始
 
 ```bash
@@ -73,6 +89,7 @@ internal/api            HTTP API
 web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块
 web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
 scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段落，附与上一个稳定 tag 的 compare 链接
+scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并用无头 Chrome 截图到 docs/screenshots
 ```
 
 ## API

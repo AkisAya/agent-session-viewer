@@ -214,6 +214,7 @@ $("refresh").addEventListener("click", async () => {
   try {
     await api.rescan();
     await Promise.all([loadStats(), loadProjects(), loadSessions(), loadPanels(), loadRelations()]);
+    if (state.view === "list") renderList(state.sessions); // relations may land after the list
   } catch (e) {
     notify(e.message);
   } finally {
@@ -243,7 +244,10 @@ applyView();
 // Keep the relative "更新于…" label honest without refetching.
 setInterval(renderScanTime, 60000);
 loadStats();
-loadRelations();
+// Cards count their subagents from the relations, so repaint once they land.
+loadRelations().then(() => {
+  if (state.view === "list" && state.sessions.length) renderList(state.sessions);
+});
 loadProjects().then(async () => {
   await Promise.all([loadSessions(), loadPanels()]);
   writeURL();

@@ -1,7 +1,7 @@
 // detail.js — the session transcript modal: messages, the outline rail,
 // parent/child relations, markdown export and the modal's own event wiring.
 
-import { $, esc, fmtNum, fmtDate, fmtClock, fmtDayLabel, displayTitle, dayKey, scrollBehavior, copyText, notify } from "./util.js";
+import { $, esc, fmtNum, fmtDate, fmtClock, fmtDayLabel, displayTitle, dayKey, midPath, scrollBehavior, copyText, notify } from "./util.js";
 import { state, findSession } from "./state.js";
 import { api } from "./api.js";
 
@@ -35,12 +35,15 @@ function msgBodyHTML(m) {
 // visible, with the carried-forward summary folded inside.
 function compactHTML(m, i, time, n) {
   const text = (m.text || "").trim();
+  // Folded card: the head line and a short excerpt stay visible, so the
+  // summary is noticeable without unrolling a multi-page block.
   const body = text
-    ? `<details class="compact-sum"><summary>查看压缩摘要（${fmtNum(text.length)} 字）</summary>
+    ? `<details class="compact-sum">
+        <summary><span class="compact-excerpt">${esc(railSnippet(text.slice(0, 600), 160))}</span><span class="compact-toggle">${fmtNum(text.length)} 字</span></summary>
         <div class="msg-body md">${window.md ? md.render(text) : esc(text)}</div></details>`
     : `<div class="compact-empty">该 agent 未记录摘要内容</div>`;
   return `<div class="msg compact" data-i="${i}">
-      <div class="compact-line"><span>上下文压缩 #${n}${time}</span></div>
+      <div class="compact-line"><span>⇣ 上下文压缩 #${n}${time}</span></div>
       ${body}
     </div>`;
 }
@@ -69,14 +72,14 @@ function renderMessages(msgs) {
 }
 
 // railSnippet flattens a message into a one-line outline entry.
-function railSnippet(text) {
+function railSnippet(text, max = 46) {
   const s = String(text || "")
     .replace(/```[\s\S]*?```/g, " [code] ")
     .replace(/[#>*`|_-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!s) return "(空)";
-  return s.length > 46 ? s.slice(0, 46) + "…" : s;
+  return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
 // buildRail fills the outline rail, skipping messages hidden by the noise
@@ -154,19 +157,36 @@ export function renderDetailRel(s) {
     el.innerHTML = "";
     return;
   }
-  const link = (x) =>
-    `<button type="button" class="rel-link" data-agent="${esc(x.agent)}" data-id="${esc(x.id)}" title="${esc(x.id)}">${esc(displayTitle(x))}</button>`;
   const parts = [];
   if (parent) {
     // A subagent's parent is its main session; everything else is a lineage.
-    parts.push(`<span class="rel-label">${s.relation === "subagent" ? "主会话" : "续接自"}</span>${link(parent)}`);
+    parts.push(`<button type="button" class="rel-parent" data-agent="${esc(parent.agent)}" data-id="${esc(parent.id)}" title="${esc(parent.id)}">
+        <span class="rel-label">${s.relation === "subagent" ? "↩ 主会话" : "↩ 续接自"}</span><span class="rel-name">${esc(displayTitle(parent))}</span>
+      </button>`);
   }
   if (kids.length) {
-    const label = kids.every((k) => k.relation === "subagent") ? `${kids.length} 个 subagent` : `后续 ${kids.length} 个`;
-    parts.push(`<span class="rel-label">${label}</span>` + kids.map(link).join("、"));
+    // One row per child: long subagent titles stay readable, and the list
+    // scrolls instead of pushing the transcript down.
+    const label = kids.every((k) => k.relation === "subagent") ? "Subagent" : "后续会话";
+    // Short lists stay open; longer ones fold to one line so the transcript
+    // keeps the space.
+    const open = kids.length <= 2 ? " open" : "";
+    const rows = kids
+      .map(
+        (k, n) => `<button type="button" class="rel-row" data-agent="${esc(k.agent)}" data-id="${esc(k.id)}" title="${esc(k.id)}">
+            <span class="rel-n">${n + 1}</span><span class="rel-name">${esc(displayTitle(k))}</span>
+            <span class="rel-info">${k.msgCount || 0} 条 · ${fmtNum((k.tokensIn || 0) + (k.tokensOut || 0) + (k.cacheRead || 0))} tokens</span>
+          </button>`
+      )
+      .join("");
+    const first = esc(displayTitle(kids[0]));
+    parts.push(`<details class="rel-kids"${open}>
+        <summary class="rel-head">${label}<span class="rel-count">${kids.length}</span><span class="rel-peek">${first}${kids.length > 1 ? " 等" : ""}</span><span class="rel-toggle"></span></summary>
+        <div class="rel-list">${rows}</div>
+      </details>`);
   }
   el.hidden = false;
-  el.innerHTML = parts.join("　·　");
+  el.innerHTML = parts.join("");
 }
 
 export function openDetail(s) {
@@ -177,8 +197,12 @@ export function openDetail(s) {
     (s.relation === "subagent"
       ? `<button type="button" class="tag-sub" data-agent="${esc(s.agent)}" data-parent="${esc(s.parentId)}" title="点击查看主会话">subagent</button>`
       : "") + esc(displayTitle(s));
-  $("detail-meta").textContent = [s.agent, s.cwd || "(未知目录)", s.model].filter(Boolean).join("  ·  ");
+  $("detail-meta").innerHTML =
+    `<span class="badge ${esc(s.agent)}">${esc(s.agent)}</span>` +
+    `<span class="dm-cwd" title="${esc(s.cwd)}">${esc(midPath(s.cwd || "(未知目录)", 64))}</span>` +
+    (s.model ? `<span class="dm-model">${esc(s.model)}</span>` : "");
   $("detail-stats").textContent = "加载中…";
+  $("detail-id").textContent = [fmtDate(s.createdAt), s.id].join("  ·  ");
   $("detail-body").innerHTML = "";
   $("detail-body").scrollTop = 0;
   state.railLock = false;
@@ -197,19 +221,20 @@ export function openDetail(s) {
       const compacts = state.msgs.filter((m) => m.role === "compact").length;
       const talk = state.msgs.length - noise - compacts;
       const prompt = (s.tokensIn || 0) + (s.cacheRead || 0);
-      $("detail-stats").textContent = [
-        `${talk} 条对话`,
-        reasoning ? `${reasoning} 条思考` : "",
-        toolMsgs ? `${toolMsgs} 条工具` : "",
-        compacts ? `压缩 ${compacts} 次` : "",
-        `输入 ${fmtNum(s.tokensIn)} · 输出 ${fmtNum(s.tokensOut)} · 缓存读 ${fmtNum(s.cacheRead)}`,
-        prompt ? `缓存命中 ${(((s.cacheRead || 0) / prompt) * 100).toFixed(1)}%` : "",
-        s.cost ? `$${Number(s.cost).toFixed(2)}` : "",
-        fmtDate(s.createdAt),
-        s.id,
-      ]
-        .filter(Boolean)
-        .join("  ·  ");
+      // Grouped chips: conversation shape, then token usage, then cost.
+      const chip = (label, value, cls) => `<span class="ds${cls ? " " + cls : ""}"><i>${label}</i>${value}</span>`;
+      $("detail-stats").innerHTML = [
+        chip("对话", talk),
+        reasoning ? chip("思考", reasoning) : "",
+        toolMsgs ? chip("工具", toolMsgs) : "",
+        compacts ? chip("压缩", compacts + " 次", "ds-compact") : "",
+        `<span class="ds-sep"></span>`,
+        chip("输入", fmtNum(s.tokensIn)),
+        chip("输出", fmtNum(s.tokensOut)),
+        chip("缓存读", fmtNum(s.cacheRead)),
+        prompt ? chip("缓存命中", `${(((s.cacheRead || 0) / prompt) * 100).toFixed(1)}%`) : "",
+        s.cost ? chip("花费", "$" + Number(s.cost).toFixed(2)) : "",
+      ].join("");
       renderMessages(state.msgs);
     })
     .catch((e) => {
@@ -304,7 +329,7 @@ document.addEventListener("keydown", (e) => {
 
 /* detail cross-links open the target session */
 $("detail-rel").addEventListener("click", (e) => {
-  const b = e.target.closest(".rel-link");
+  const b = e.target.closest(".rel-parent, .rel-row");
   if (!b) return;
   const s = state.relations.find((x) => x.agent === b.dataset.agent && x.id === b.dataset.id);
   if (s) openDetail(s);

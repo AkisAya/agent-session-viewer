@@ -121,12 +121,23 @@ const { renderList } = await mod("list.js");
 const detail = await mod("detail.js");
 const dash = await mod("dashboard.js");
 
+/* ---------- top-bar stats ---------- */
+shapes["/api/stats"] = { agents: [], total: { sessions: 1, tokensIn: 25, tokensOut: 4, cacheRead: 75 }, lastScan: "" };
+await (await mod("stats.js")).loadStats();
+assert(cache.get("stats").innerHTML.includes("75.0%"), "top bar shows the cache hit rate");
+
 /* ---------- pure helpers ---------- */
 assert(hl("Hello World", "world") === "Hello <mark>World</mark>", "hl highlights case-insensitively");
 assert(displayTitle({ title: "550e8400-e29b-41d4-a716-446655440000", preview: "first line\nsecond" }) === "first line", "displayTitle skips uuid titles");
 assert(shortPath("/a/b/c/d") === "c/d", "shortPath keeps the tail");
 
 /* ---------- session list ---------- */
+// The subagent count comes from the unscoped relations, so it survives a
+// filter that leaves the child out of the list rows.
+state.relations = [
+  { agent: "claude", id: "s2", relation: "subagent", parentId: "s1" },
+  { agent: "claude", id: "s3", relation: "subagent", parentId: "s1" },
+];
 renderList([
   { agent: "claude", id: "s1", title: "Fix the bug", preview: "p", cwd: "/a/b/c", msgCount: 3, tokensIn: 1, tokensOut: 2, cacheRead: 3, cost: 0.5, compacts: 2, model: "openai/gpt-5", updatedAt: "2026-01-01T12:00:00Z" },
   { agent: "claude", id: "s2", relation: "subagent", parentId: "s1", title: "child", updatedAt: "2026-01-01T12:00:00Z" },
@@ -134,7 +145,7 @@ renderList([
 const listHTML = cache.get("list").innerHTML;
 assert(listHTML.includes('data-id="s1"'), "renderList renders the parent card");
 assert(!listHTML.includes('data-id="s2"'), "renderList hides subagent cards");
-assert(listHTML.includes("subagent ×1"), "renderList counts children on the parent");
+assert(listHTML.includes("subagent ×2"), "renderList counts children from the relations, not just the rows");
 assert(listHTML.includes("compact ×2"), "renderList shows the compaction count");
 
 /* ---------- dashboard ---------- */
@@ -168,17 +179,24 @@ assert(cache.get("activity-body").innerHTML.includes("hm-cell"), "renderActivity
 }
 
 /* ---------- transcript modal ---------- */
-state.relations = [{ agent: "claude", id: "s1", title: "parent" }];
+state.relations = [
+  { agent: "claude", id: "s1", title: "parent" },
+  { agent: "claude", id: "k1", parentId: "s1", relation: "subagent", title: "Explore transport code", msgCount: 12, tokensIn: 1000 },
+  { agent: "claude", id: "k2", parentId: "s1", relation: "subagent", title: "Explore tests", msgCount: 3 },
+];
 detail.openDetail({ agent: "claude", id: "s1", title: "Fix the bug", cwd: "/a/b", model: "m", tokensIn: 25, tokensOut: 4, cacheRead: 75, createdAt: "2026-01-01T12:00:00Z" });
 await new Promise((r) => setTimeout(r, 60));
-assert(cache.get("detail-stats").textContent.includes("3 条对话"), "openDetail renders the stats line");
+const stats = cache.get("detail-stats").innerHTML;
+const rel = cache.get("detail-rel").innerHTML;
+assert(/<i>对话<\/i>3</.test(stats), "openDetail renders the stats chips");
+assert((rel.match(/class="rel-row"/g) || []).length === 2 && rel.includes("Explore transport code") && rel.includes("12 条"), "subagents render as one row each");
 const body = cache.get("detail-body").innerHTML;
 assert(body.includes('class="msg user"') && body.includes("<strong>world</strong>"), "transcript renders markdown messages");
 assert(body.includes("md-code"), "transcript renders fenced code blocks");
-assert(body.includes("上下文压缩 #1") && body.includes("compact-sum") && body.includes("earlier work"), "transcript renders the compaction marker with its summary");
-assert(cache.get("detail-stats").textContent.includes("压缩 1 次"), "stats line counts compactions");
-assert(/输入 25 · 输出 4 · 缓存读 75/.test(cache.get("detail-stats").textContent), "stats line splits input / output / cache");
-assert(cache.get("detail-stats").textContent.includes("缓存命中 75.0%"), "stats line shows the cache hit rate");
+assert(body.includes("上下文压缩 #1") && body.includes("compact-excerpt") && body.includes("earlier work"), "transcript renders the compaction marker with excerpt and summary");
+assert(stats.includes("<i>压缩</i>1 次"), "stats line counts compactions");
+assert(stats.includes("<i>输入</i>25") && stats.includes("<i>输出</i>4") && stats.includes("<i>缓存读</i>75"), "stats line splits input / output / cache");
+assert(stats.includes("<i>缓存命中</i>75.0%"), "stats line shows the cache hit rate");
 assert(cache.get("rail-list").innerHTML.includes("rail-item"), "transcript builds the outline rail");
 
 console.log("SMOKE OK: renders exercised with sample data");

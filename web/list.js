@@ -49,17 +49,16 @@ function resumeCommand(s) {
 
 export function renderList(rows) {
   // Subagent sessions never appear as their own cards; they are reachable
-  // from the main session's detail page. The parent card carries a count tag.
+  // from the main session's detail page. The parent card carries a count tag,
+  // counted from the unscoped relations: a search / day / project filter can
+  // leave the children out of `rows` while the parent still matches.
   const subCount = new Map();
-  const visible = [];
-  for (const s of rows) {
-    if (s.relation === "subagent") {
-      const pk = s.agent + "|" + s.parentId;
-      subCount.set(pk, (subCount.get(pk) || 0) + 1);
-    } else {
-      visible.push(s);
-    }
+  for (const s of state.relations) {
+    if (s.relation !== "subagent") continue;
+    const pk = s.agent + "|" + s.parentId;
+    subCount.set(pk, (subCount.get(pk) || 0) + 1);
   }
+  const visible = rows.filter((s) => s.relation !== "subagent");
   if (!visible.length) {
     const hint = state.q || state.cwd ? "试试清除搜索或项目筛选" : "点击右上角「刷新」重新扫描";
     showEmpty("没有匹配的会话", hint);
@@ -76,20 +75,24 @@ export function renderList(rows) {
       const showPreview = previewText && previewText !== title;
       const subs = subCount.get(s.agent + "|" + s.id) || 0;
       const cmd = resumeCommand(s);
+      // Three bands: who/when on top, what in the middle, numbers + tags +
+      // action at the bottom — each band one line, so cards scan quickly.
       return `<div class="card agent-${esc(s.agent)}" data-agent="${esc(s.agent)}" data-id="${esc(s.id)}" tabindex="0" role="button">
+        <div class="card-top">
+          <span class="badge ${esc(s.agent)}">${esc(s.agent)}</span>
+          ${s.model ? `<span class="card-model" title="${esc(s.model)}">${esc(shortModel(s.model))}</span>` : ""}
+          <span class="time" title="${esc(fmtDate(s.updatedAt))}">${fmtTime(s.updatedAt)}</span>
+        </div>
         <div class="card-title" title="${esc(title)}">${hl(title, state.q)}</div>
         ${showPreview ? `<div class="card-preview">${hl(previewText, state.q)}</div>` : ""}
         ${showCwd ? `<div class="card-cwd" title="${esc(s.cwd)}">${esc(midPath(s.cwd || "(未知目录)"))}</div>` : ""}
         <div class="card-foot">
           <div class="card-meta">
-            <span class="badge ${esc(s.agent)}">${esc(s.agent)}</span>
-            ${s.model ? `<span class="card-model" title="${esc(s.model)}">${esc(shortModel(s.model))}</span>` : ""}
+            <span>${s.msgCount || 0} 条</span>
+            ${tokens ? `<span class="tok">${fmtNum(tokens)} tokens</span>` : ""}
+            ${s.cost ? `<span>$${Number(s.cost).toFixed(2)}</span>` : ""}
             ${subs ? `<span class="tag-sub" title="包含 ${subs} 个 subagent 会话，打开详情页查看">subagent ×${subs}</span>` : ""}
             ${s.compacts ? `<span class="tag-sub tag-compact" title="上下文压缩 ${s.compacts} 次，打开详情页查看压缩摘要">compact ×${s.compacts}</span>` : ""}
-            <span>${s.msgCount || 0} 条</span>
-            <span class="tok">${fmtNum(tokens)} tokens</span>
-            ${s.cost ? `<span>$${Number(s.cost).toFixed(2)}</span>` : ""}
-            <span class="time" title="${esc(fmtDate(s.updatedAt))}">${fmtTime(s.updatedAt)}</span>
           </div>
           ${cmd ? `<button type="button" class="card-resume" data-cmd="${esc(cmd)}" title="复制到剪贴板：${esc(cmd)}">⧉ resume</button>` : ""}
         </div>
