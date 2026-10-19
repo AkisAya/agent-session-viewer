@@ -24,6 +24,8 @@
 
 ## 快速开始
 
+需要 Go 1.26 或更高版本。
+
 ```bash
 go build -o asv .
 ./asv            # 默认：索引持久化到 SQLite 缓存
@@ -34,12 +36,14 @@ go build -o asv .
 
 ## 数据来源
 
-| Agent | 路径 | 说明 |
-|---|---|---|
-| Claude Code | `~/.claude/projects/<编码路径>/<sessionId>.jsonl` | 标题取 `custom-title` / `ai-title` / `last-prompt`，费用取 `cost-state`，思考取 `thinking` 块，工具调用取 `tool_use` 块，活动按行内 `timestamp` 归日 |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | 标题优先取 `session_index.jsonl`，模型取 `turn_context`，Token 取累计 `token_count`，回退解析 `response_item`；工具调用优先取 `event_msg` 的 `CommandExecution`/`WebSearch`/`McpToolCall`，否则取 `response_item` 的 `function_call`/`custom_tool_call`；`parent_thread_id` 非自身时记为续接 |
-| OpenCode | `~/.local/share/opencode/opencode.db` | 只读打开，读取 `session_v2` 与 `session_message`（兼容旧的 `message`/`part`）；活动按 `time_created` 归日，工具调用取 assistant 消息中的 `tool` 内容块；`parent_id` 记为子代理（`subagent`），`fork_session_id` 记为分叉（`fork`） |
-| DSH | `~/.dsh/sessions/<编码 cwd>/<sessionId>/session.vN.jsonl.zstd` | 读取 DSH 的追加式会话日志；`session.vN.jsonl`（未压缩）同样支持。标题取 `session/title`，模型取 `request/context` / assistant 消息，Token 取每条 `assistant/message` 的 `usage`（输入 / 输出 / 缓存读）；真实用户消息只认 `source.kind = user`，忽略注入的 runtime-context / skill-catalog 等上下文；工具调用取 `tool/call`；`parentSession` + `origin: subagent` 记为子代理 |
+| Agent | 路径 |
+|---|---|
+| Claude Code | `~/.claude/projects/<编码路径>/<sessionId>.jsonl` |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` |
+| OpenCode | `~/.local/share/opencode/opencode.db`（只读打开） |
+| DSH | `~/.dsh/sessions/<编码 cwd>/<sessionId>/session.vN.jsonl.zstd`（未压缩的 `session.vN.jsonl` 同样支持） |
+
+会话标题、模型、Token、花费、工具调用与每日活动都从上述文件解析；子代理、分叉和续接关系也会自动识别并互相跳转。解析细节见 [设计说明](docs/DESIGN.md)。
 
 四个 agent 的历史路径在各平台一致：Windows 上 `~` 即 `%USERPROFILE%`，OpenCode 也沿用 Unix 风格的 `~/.local/share/opencode`。DSH 默认读取 `~/.dsh/sessions`，设置了 `DSH_HOME` 时改为 `$DSH_HOME/sessions`。只有本工具自己的索引数据库遵循平台习惯——Windows 下默认 `%LOCALAPPDATA%\agent-session-viewer\index.db`，其他平台 `~/.local/share/agent-session-viewer/index.db`（`-db` 可覆盖）。
 
@@ -59,39 +63,6 @@ go build -o asv .
 -version               打印版本号后退出
 ```
 
-## 设计要点
-
-- **增量索引**：缓存数据库（SQLite）为每个源文件记录 `size` / `mtime` / 解析偏移量。文件未变化时整文件跳过；有追加时只解析新增字节并累加统计。
-- **DSH 帧级增量**：DSH 的 `.zstd` 日志是「头帧 + 每个追加批次一帧」的独立 Zstandard 帧拼接。解析器按帧边界推进游标，只解压新增帧；崩溃留下的尾部残帧会被保留到下次扫描，不会误当成损坏文件。
-- **按需加载正文**：列表只读缓存，对话内容在点击某个会话时才从源文件读取，不进常驻内存。
-- **稳定 ID**：解析出的 session id 随游标一起持久化，保证增量扫描时不会因为读不到文件头而错配。
-- **只读访问**：读取 OpenCode 数据库与磁盘文件均为只读，不影响正在运行的 agent。
-- **默认仅本机可访问**：HTTP 默认绑定 `127.0.0.1`。本工具会暴露全部本机对话记录，因此只有显式传 `-host 0.0.0.0` 才会对外网开放。
-- **内存模式**：`-memory` 用内存版 SQLite（`mode=memory&cache=shared`）承载同一套索引，不落盘、不需要 `-db` 目录；代价是没有持久化游标，每次启动都要全量扫描一次。
-- **按来源累计用量**：消息数 / Token / 花费以 `(agent, 会话, 来源文件)` 为主键存于 `session_usage`，会话行由各来源求和得出，因此一个横跨多个 rollout 文件的 Codex 续接会话会正确累加而不是相互覆盖。每个来源单独记录「整文件解析 = 覆盖」还是「增量解析 = 累加」，避免手工组合多个绝对/相对标志。
-- **活动 / 工具直方图**：`activity`（按天消息数）与 `tool_use`（按工具调用次数）同样以 `(agent, 会话, 来源文件)` 为主键存储。整文件解析视为该来源文件的绝对值（直接替换），增量解析只累加新增行——因为一个 Codex 会话可能横跨多个 rollout 文件，统计必须落到来源文件维度，否则后解析的文件会覆盖先前的统计。来源文件消失且会话再无其他来源时一并清理。
-- **正文按需 + 来源提示**：对话内容在点击某个会话时才读取，并使用索引里记录的来源路径直接定位（回退到目录扫描），逐行流式解析，不进常驻内存。
-- **工具名归一化**：四个 agent 的工具命名各不相同（Claude 的 `Bash`、Codex 的 `exec_command`、OpenCode 的 `shell`/`bash`、DSH 的 `bash`），在解析阶段统一映射到规范名，MCP 工具保留为 `mcp:server.tool`。
-
-## 项目结构
-
-```
-main.go                 CLI 入口
-internal/config         路径与参数解析
-internal/model          归一化的 Session / Message / Stats
-internal/source         数据源接口与增量 Delta 定义
-internal/source/claude  Claude Code 解析
-internal/source/codex   Codex 解析（跨 rollout 文件合并对话）
-internal/source/opencode OpenCode SQLite 解析
-internal/source/dsh     DSH 会话日志解析（zstd 帧级增量）
-internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API）
-internal/api            HTTP API
-web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util 加 list/dashboard/projects/stats/detail 视图模块
-web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
-scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段落，附与上一个稳定 tag 的 compare 链接
-scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并用无头 Chrome 截图到 docs/screenshots
-```
-
 ## API
 
 | 方法 | 路径 | 说明 |
@@ -106,3 +77,7 @@ scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并
 | GET | `/api/tools?agent=&cwd=&limit=` | 工具调用排行及未截断的总调用次数 |
 | GET | `/api/relations?agent=&cwd=` | 处于父子关系中的会话（含父与子），供详情页显示并跳转到主会话 / subagent / 分叉 / 续接的关联会话 |
 | POST | `/api/rescan` | 触发增量扫描 |
+
+---
+
+变更记录见 [CHANGELOG.md](CHANGELOG.md)，实现与解析细节见 [docs/DESIGN.md](docs/DESIGN.md)。
