@@ -1,0 +1,22 @@
+README.md
+  s_6a24eda05c6a42::t_a4a42b392c1f04 85
+  s_6a24eda05c6a42::t_f344323233f32e 27-29,32-41,45,48-49,52
+docs/DESIGN.md
+  s_6a24eda05c6a42::t_149c1cab9bf6c9 47-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "facb89c624aa9d8bf817ae5c6f247d98a69a9add",
+  "prompts": {},
+  "sessions": {
+    "s_6a24eda05c6a42": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eabbff605ffe9BscSPKpmlrJXj",
+        "model": "claude-glm-5.3[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
