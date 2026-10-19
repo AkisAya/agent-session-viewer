@@ -456,6 +456,18 @@ mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; paddi
 .seg button:hover { color: var(--fg); }
 .seg button.active { background: color-mix(in srgb, var(--accent) 15%, var(--panel-2)); color: var(--accent); font-weight: 600; }
 
+/* KPI summary cards */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.kpi-label { color: var(--muted-2); font-size: 11.5px; }
+.kpi-val { font-size: 19px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-val small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.kpi-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+.kpi-delta { font-size: 11px; font-weight: 600; margin-left: 6px; color: var(--muted); }
+.kpi-delta.up { color: var(--codex); }
+.kpi-delta.down { color: var(--danger); }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 /* generic horizontal bar rows (models / rankings / tools / agents) */
 .bar-row { display: grid; grid-template-columns: 132px minmax(40px, 1fr) auto; gap: 10px; align-items: center; padding: 3px 0; }
 .bar-name {
@@ -467,12 +479,44 @@ mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; paddi
 .bar-val { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bar-row[data-tip] { cursor: default; }
 
+/* activity panel: heatmap on the left, trend fills the remaining width */
+.activity { display: flex; gap: 22px; align-items: stretch; }
+.activity > #activity-body { flex: 0 1 auto; min-width: 0; }
+.activity-trend { flex: 1 1 260px; min-width: 220px; display: flex; border-left: 1px solid var(--border); padding-left: 20px; }
+@media (max-width: 900px) {
+  .activity { flex-direction: column; }
+  .activity-trend { flex: none; height: 150px; border-left: none; padding-left: 0; }
+}
+
 /* trend bar chart */
-.trend { display: flex; flex-direction: column; gap: 6px; }
-.trend-bars { display: flex; align-items: flex-end; gap: 1px; height: 90px; overflow: hidden; }
-.trend-bar { flex: 1 1 2px; min-width: 1px; background: var(--accent); opacity: .7; border-radius: 2px 2px 0 0; }
+.trend { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.trend-head { display: flex; justify-content: space-between; color: var(--muted-2); font-size: 10.5px; }
+.trend-bars {
+  display: flex; align-items: flex-end; gap: 1px; flex: 1; min-height: 110px; overflow: hidden;
+  /* faint quarter gridlines */
+  background: repeating-linear-gradient(to top, transparent 0 calc(25% - 1px), var(--border) calc(25% - 1px) 25%);
+}
+.trend-bar { flex: 1 1 0; min-width: 1px; background: var(--accent); opacity: .75; border-radius: 2px 2px 0 0; }
+.trend-bar.zero { background: var(--border); }
 .trend-bar:hover { opacity: 1; }
 .trend-axis { display: flex; justify-content: space-between; color: var(--muted-2); font-size: 10.5px; }
+
+/* comparison tables (agents / projects) */
+.dt-wrap { overflow-x: auto; }
+.dt { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dt th { text-align: left; font-weight: 600; color: var(--muted-2); font-size: 11px; padding: 0 10px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.dt td { padding: 6px 10px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); white-space: nowrap; color: var(--muted); }
+.dt th:first-child, .dt td:first-child { padding-left: 4px; }
+.dt .num { text-align: right; }
+.dt tbody tr { cursor: pointer; }
+.dt tbody tr:hover { background: var(--panel-2); }
+.dt tbody tr.active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dt tbody tr.active .dt-name { color: var(--accent); font-weight: 600; }
+.dt-name { background: none; border: none; padding: 0; font: inherit; color: var(--fg); cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.dt-share { width: 24%; min-width: 130px; }
+.dt-bar { display: flex; align-items: center; gap: 8px; }
+.dt-bar .bar-track { flex: 1; }
+.dt-pct { width: 34px; text-align: right; color: var(--muted-2); font-size: 11px; }
 
 /* heatmap legend */
 .hm-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--muted-2); font-size: 10.5px; }

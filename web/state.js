@@ -16,11 +16,11 @@ export const state = {
   trend: [],
   models: [],
   agents: [],
+  total: {},
   tools: { tools: [], total: 0 },
   // heatmap / trend display settings
   hmRange: 180,
   hmMetric: "msgs",
-  trendMetric: "msgs",
   // active single-day filter (YYYY-MM-DD), set by clicking a heatmap cell
   day: "",
   // every session involved in a parent/child link, fetched once and filtered

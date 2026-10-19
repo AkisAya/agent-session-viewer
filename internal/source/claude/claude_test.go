@@ -79,6 +79,25 @@ func TestScanEmitsNormalizedTools(t *testing.T) {
 	}
 }
 
+// Claude Code writes one line per content block, each repeating the response's
+// usage; tokens must be counted once per message id.
+func TestScanDedupesUsagePerMessage(t *testing.T) {
+	root := t.TempDir()
+	u := `"usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":100}`
+	writeSession(t, root, "s",
+		`{"type":"assistant","timestamp":"2026-01-01T12:00:00Z","sessionId":"s","message":{"id":"m1","content":[{"type":"thinking"}],`+u+`}}`,
+		`{"type":"assistant","timestamp":"2026-01-01T12:00:01Z","sessionId":"s","message":{"id":"m1","content":[{"type":"tool_use","name":"Bash"}],`+u+`}}`,
+		`{"type":"assistant","timestamp":"2026-01-01T12:00:02Z","sessionId":"s","message":{"id":"m2","content":[{"type":"text","text":"x"}],`+u+`}}`)
+
+	var d source.Delta
+	if _, err := (&Source{Root: root}).Scan(nil, func(x source.Delta) { d = x }); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if d.Tokens.In != 20 || d.Tokens.Out != 10 || d.Tokens.Cache != 200 {
+		t.Fatalf("tokens = %+v, want 20/10/200 (two distinct messages)", d.Tokens)
+	}
+}
+
 // A path hint from the index must be used directly: the file here lives
 // outside the projects root, so only the hint can locate it.
 func TestTranscriptUsesHint(t *testing.T) {

@@ -138,6 +138,32 @@ assert(listHTML.includes("subagent ×1"), "renderList counts children on the par
 /* ---------- dashboard ---------- */
 dash.renderActivity(cache.get("activity-body"), [{ day: "2026-01-02", msgs: 5, sessions: 1, tokens: 10 }], 90, "msgs", true);
 assert(cache.get("activity-body").innerHTML.includes("hm-cell"), "renderActivity draws heatmap cells");
+{
+  const day = (off) => {
+    const d = new Date();
+    d.setDate(d.getDate() - off);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  // today 200 tokens vs yesterday 100 -> +100%; cache 75 of (25 + 75) prompt tokens.
+  dash.renderKPI(cache.get("kpi-body"), [{ day: day(0), msgs: 2, tokens: 200, cost: 1 }, { day: day(1), msgs: 1, tokens: 100, cost: 0 }], { tokensIn: 25, cacheRead: 75 });
+  const kpi = cache.get("kpi-body").innerHTML;
+  assert(kpi.includes("+100%"), "renderKPI compares today with yesterday");
+  assert(kpi.includes("75.0%"), "renderKPI shows the cache hit rate");
+
+  // Two recent active days in a 90-day range: leading idle days are trimmed to 14 bars.
+  const short = dash.trendBuckets([{ day: day(0), msgs: 3 }, { day: day(2), msgs: 1 }], 90, "msgs");
+  assert(!short.weekly && short.bars.length === 14, "trendBuckets trims idle lead-in to 14 days");
+  // Activity spread over a year groups into weekly bars, keeping the total.
+  const year = dash.trendBuckets([{ day: day(300), msgs: 2 }, { day: day(0), msgs: 5 }], 365, "msgs");
+  assert(year.weekly && year.bars.length <= 45, "trendBuckets groups long ranges by week");
+  assert(year.bars.reduce((n, b) => n + b.v, 0) === 7, "weekly buckets keep the total");
+
+  state.agent = "claude";
+  dash.renderAgentCompare(cache.get("agent-body"), [{ agent: "claude", sessions: 2, tokensIn: 10, cacheRead: 30 }, { agent: "codex", sessions: 1 }]);
+  const at = cache.get("agent-body").innerHTML;
+  assert(at.includes('data-agent="codex"') && /class="active"\s+data-agent="claude"/.test(at), "agent table marks the active tab");
+  state.agent = "";
+}
 
 /* ---------- transcript modal ---------- */
 state.relations = [{ agent: "claude", id: "s1", title: "parent" }];

@@ -43,6 +43,7 @@ type entry struct {
 }
 
 type message struct {
+	ID      string          `json:"id"`
 	Role    string          `json:"role"`
 	Model   string          `json:"model"`
 	Content json.RawMessage `json:"content"`
@@ -129,6 +130,12 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	)
 	act := map[string]int{}
 	tools := map[string]int{}
+	// Claude Code writes one line per content block of a response, each
+	// repeating the same message id and usage; count usage once per id.
+	// shortcut: dedupe is per parse, so a response split across an
+	// incremental-scan boundary is still counted twice; persist the last id
+	// in the cursor if that shows up in practice.
+	seenUsage := map[string]bool{}
 
 	for _, raw := range lines {
 		var e entry
@@ -180,7 +187,8 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 				if m.Model != "" {
 					modelName = m.Model
 				}
-				if m.Usage != nil {
+				if m.Usage != nil && (m.ID == "" || !seenUsage[m.ID]) {
+					seenUsage[m.ID] = m.ID != ""
 					d.Tokens.In += m.Usage.InputTokens
 					d.Tokens.Out += m.Usage.OutputTokens
 					d.Tokens.Cache += m.Usage.CacheReadInputTokens

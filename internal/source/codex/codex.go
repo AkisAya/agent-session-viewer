@@ -310,12 +310,15 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 		}
 	}
 
+	// OpenAI's input_tokens already includes the cached part; store the
+	// uncached remainder so In+Cache matches the other agents' semantics.
 	switch {
 	case sawCumulative:
 		d.Tokens = source.Usage{Replace: true,
-			In: cumulative.InputTokens, Out: cumulative.OutputTokens, Cache: cumulative.CachedInputTokens}
+			In:  max(0, cumulative.InputTokens-cumulative.CachedInputTokens),
+			Out: cumulative.OutputTokens, Cache: cumulative.CachedInputTokens}
 	case sawAdditive:
-		d.Tokens.In = additive.InputTokens
+		d.Tokens.In = max(0, additive.InputTokens-additive.CachedInputTokens)
 		d.Tokens.Out = additive.OutputTokens
 		d.Tokens.Cache = additive.CachedInputTokens
 	}

@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+### Added
+
+- **看板概览卡片**：顶部新增「今日 / 近 7 天 / 近 30 天」的 Token、消息数、花费及环比涨跌，以及当前范围的缓存命中率（缓存读 /（未缓存输入 + 缓存读））。
+- **Agent 对比 / 项目排行改为可点击的对比表**：Agent 表列出会话、消息、输入、输出、缓存读、缓存命中率、花费与 Token 占比，当前 agent 高亮，点击行切换标签（再次点击回到全部）；项目表列出会话、消息、Token、花费、最近活跃与占比，点击行筛选该项目。
+
+### Changed
+
+- **热力图与趋势合并为「活动」面板**：两者并排、共用指标与跨度切换；趋势裁掉开头的空白日（至少保留 14 天），跨度超过 92 天时按周聚合（「会话」按周取单日峰值），并加参考线、峰值与日期刻度；副标题按所选指标显示合计并标出峰值日。
+- **看板布局**：模型分布与工具排行同排且都取前 8，高度对齐；项目排行是跨项目对比，选中单个项目时隐藏。
+- 模型分布与项目排行先按 Token 排序再取前 N，柱长与「按 Token」一致；没有花费数据的 agent 显示「—」而非 `$0.00`。
+
+### Fixed
+
+- **Claude Token 重复计数**：Claude Code 把一次响应的每个 content block 写成一行并重复同一份 `usage`，现按 `message.id` 去重。
+- **Codex 缓存重复计数**：OpenAI 的 `input_tokens` 已包含 `cached_input_tokens`，现只存未缓存部分，与其他 agent 口径一致。
+- 索引 schema 升至 v9，升级后首次启动会全量重扫一次以修正已缓存的数字。
+
 ## [0.4.0] - 2026-10-19
 
 ### Added
@@ -123,7 +142,9 @@
 - 「刷新」按钮触发一次增量扫描。
 - macOS（arm64）发布工作流，推送 `v*` tag 时自动构建并上传产物。
 
-[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AkisAya/agent-session-viewer/releases/tag/v0.1.0

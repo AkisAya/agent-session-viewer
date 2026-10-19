@@ -1,7 +1,7 @@
 // dashboard.js — the "看板" view: heatmap, trend, rankings and the per-agent
 // comparison table, plus the scoped aggregate fetches that feed them.
 
-import { $, esc, fmtNum, TAB_LABEL, shortPath, dayKey, notify } from "./util.js";
+import { $, esc, fmtNum, fmtTime, TAB_LABEL, shortPath, cwdKey, dayKey, notify } from "./util.js";
 import { state } from "./state.js";
 import { api, scopeParams } from "./api.js";
 
@@ -106,12 +106,15 @@ export function renderActivity(el, days, span, metric, withLegend) {
     .join("");
 
   let active = 0;
-  let totalMsgs = 0;
+  let totalMetric = 0;
+  let peak = null;
   for (const [k, rec] of map) {
     const d = new Date(k + "T00:00:00");
     if (d < start || d > end) continue;
     if ((rec.msgs || 0) > 0) active++;
-    totalMsgs += rec.msgs || 0;
+    const v = metricValue(rec, metric);
+    totalMetric += v;
+    if (v > 0 && (!peak || v > peak.v)) peak = { day: k, v };
   }
   const streak = longestStreak(map, start, end);
 
@@ -123,8 +126,71 @@ export function renderActivity(el, days, span, metric, withLegend) {
 
   const sub = $("activity-sub");
   if (sub) {
-    sub.textContent = `近 ${span} 天 · 活跃 ${active} 天 · 最长连续 ${streak} 天 · ${fmtNum(totalMsgs)} 条消息`;
+    // Per-day session counts overlap across days, so their sum is meaningless.
+    const parts = [`活跃 ${active} 天`, `最长连续 ${streak} 天`];
+    if (metric !== "sessions") parts.push("合计 " + metricText(metric, totalMetric));
+    if (peak) parts.push(`峰值 ${peak.day.slice(5)} ${metricText(metric, peak.v)}`);
+    sub.textContent = parts.join(" · ");
   }
+}
+
+// periodSum totals msgs / tokens / cost over the `len` days ending `endOffset`
+// days before today (0 = ending today).
+function periodSum(map, len, endOffset) {
+  const out = { msgs: 0, tokens: 0, cost: 0 };
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - endOffset);
+  for (let i = 0; i < len; i++, d.setDate(d.getDate() - 1)) {
+    const rec = map.get(dayKey(d));
+    if (!rec) continue;
+    out.msgs += rec.msgs || 0;
+    out.tokens += rec.tokens || 0;
+    out.cost += rec.cost || 0;
+  }
+  return out;
+}
+
+// deltaHTML renders the change against the previous period of equal length.
+function deltaHTML(cur, prev) {
+  if (!prev) return "";
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  const cls = pct > 0 ? "up" : pct < 0 ? "down" : "";
+  return `<span class="kpi-delta ${cls}" title="对比上一周期">${pct > 0 ? "+" : ""}${pct}%</span>`;
+}
+
+// cacheRate is the share of prompt tokens served from cache.
+export function cacheRate(a) {
+  const denom = (a.tokensIn || 0) + (a.cacheRead || 0);
+  return denom ? (a.cacheRead || 0) / denom : 0;
+}
+
+// renderKPI draws the summary cards: today / 7d / 30d from the trend series
+// (tokens and cost there are apportioned by message share), plus the cache
+// hit rate of the current scope.
+export function renderKPI(el, days, total) {
+  if (!el) return;
+  const map = new Map((days || []).map((d) => [d.day, d]));
+  const card = (label, len) => {
+    const cur = periodSum(map, len, 0);
+    const prev = periodSum(map, len, len);
+    return `<div class="kpi">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-val">${fmtNum(cur.tokens)} <small>tokens</small>${deltaHTML(cur.tokens, prev.tokens)}</div>
+        <div class="kpi-sub">${fmtNum(cur.msgs)} 条消息 · $${cur.cost.toFixed(2)}</div>
+      </div>`;
+  };
+  const t = total || {};
+  const rate = cacheRate(t);
+  el.innerHTML =
+    card("今日", 1) +
+    card("近 7 天", 7) +
+    card("近 30 天", 30) +
+    `<div class="kpi" title="缓存读 / (未缓存输入 + 缓存读)">
+        <div class="kpi-label">缓存命中率</div>
+        <div class="kpi-val">${(rate * 100).toFixed(1)}%</div>
+        <div class="kpi-sub">缓存读 ${fmtNum(t.cacheRead || 0)} · 输入 ${fmtNum(t.tokensIn || 0)}</div>
+      </div>`;
 }
 
 // barRows renders a compact horizontal bar ranking into el.
@@ -146,35 +212,54 @@ function emptyPanel(el, subId, msg) {
   if (s) s.textContent = "";
 }
 
-// renderTrend draws a per-day bar chart of the selected metric.
-export function renderTrend(el, days, span, metric) {
-  if (!el) return;
+// trendBuckets turns the last `span` days into chart bars. Leading idle days
+// are trimmed (keeping at least 14) so a short history fills the chart, and
+// ranges over 92 days are grouped by week to keep bars readable. Weekly
+// "sessions" take the busiest day because per-day session counts overlap.
+export function trendBuckets(days, span, metric) {
   const map = new Map((days || []).map((d) => [d.day, d]));
   const end = new Date();
   end.setHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setDate(start.getDate() - (span - 1));
-
   const vals = [];
-  let sum = 0;
-  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const rec = map.get(dayKey(d));
-    const v = metricValue(rec, metric);
-    vals.push({ day: dayKey(d), v });
-    sum += v;
+  for (let i = span - 1; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    vals.push({ d, v: metricValue(map.get(dayKey(d)), metric) });
   }
-  const max = Math.max(1, ...vals.map((x) => x.v));
+  const first = vals.findIndex((x) => x.v > 0);
+  const trimmed = first < 0 ? vals.slice(-14) : vals.slice(Math.min(first, Math.max(0, vals.length - 14)));
+  if (trimmed.length <= 92) return { weekly: false, bars: trimmed.map((x) => ({ label: dayKey(x.d), v: x.v })) };
+
+  const bars = [];
+  for (const x of trimmed) {
+    const monday = new Date(x.d);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const label = dayKey(monday);
+    const last = bars[bars.length - 1];
+    if (last && last.label === label) last.v = metric === "sessions" ? Math.max(last.v, x.v) : last.v + x.v;
+    else bars.push({ label, v: x.v });
+  }
+  return { weekly: true, bars };
+}
+
+// renderTrend draws the bar chart next to the heatmap, sharing its metric
+// and range.
+export function renderTrend(el, days, span, metric) {
+  if (!el) return;
+  const { weekly, bars } = trendBuckets(days, span, metric);
+  const max = Math.max(...bars.map((x) => x.v), 0);
+  const unit = weekly ? (metric === "sessions" ? "周内单日峰值 " : "当周 ") : "";
+  const mid = bars[Math.floor(bars.length / 2)];
   el.innerHTML = `<div class="trend">
-      <div class="trend-bars">${vals
+      <div class="trend-head"><span>${weekly ? "按周" : "按天"}</span><span>峰值 ${esc(metricText(metric, max))}</span></div>
+      <div class="trend-bars">${bars
         .map(
           (x) =>
-            `<i class="trend-bar" style="height:${Math.max(1, Math.round((x.v / max) * 100))}%" data-tip="${esc(x.day + " · " + metricText(metric, x.v))}"></i>`
+            `<i class="trend-bar${x.v ? "" : " zero"}" style="height:${max ? Math.max(2, Math.round((x.v / max) * 100)) : 2}%" data-tip="${esc((weekly ? x.label + " 起" : x.label) + " · " + unit + metricText(metric, x.v))}"></i>`
         )
         .join("")}</div>
-      <div class="trend-axis"><span>${esc(dayKey(start))}</span><span>${esc(dayKey(end))}</span></div>
+      <div class="trend-axis"><span>${esc(bars[0].label.slice(5))}</span><span>${esc(mid.label.slice(5))}</span><span>${esc(bars[bars.length - 1].label.slice(5))}</span></div>
     </div>`;
-  const sub = $("trend-sub");
-  if (sub) sub.textContent = `近 ${span} 天合计 ${metricText(metric, sum)}`;
 }
 
 // renderModels ranks models by token volume.
@@ -182,7 +267,7 @@ function renderModels(el, models) {
   if (!el) return;
   const list = models || [];
   if (!list.length) return emptyPanel(el, "models-sub", "暂无模型记录");
-  const top = list.slice(0, 8);
+  const top = [...list].sort((a, b) => (b.tokens || 0) - (a.tokens || 0)).slice(0, 8);
   const max = Math.max(...top.map((m) => m.tokens || 1));
   barRows(
     el,
@@ -195,28 +280,51 @@ function renderModels(el, models) {
     }))
   );
   const sub = $("models-sub");
-  if (sub) sub.textContent = `${list.length} 个模型`;
+  if (sub) sub.textContent = `${list.length} 个模型 · 按 Token`;
 }
 
-// renderProjectRanking ranks projects by token volume.
+// dataTable renders a comparison table whose rows open a scope via the
+// button in their first cell. The last column is a share bar.
+function dataTable(head, rows) {
+  return `<div class="dt-wrap"><table class="dt">
+      <thead><tr>${head.map((h, i) => `<th${i ? ' class="num"' : ""}>${esc(h)}</th>`).join("")}<th class="dt-share">占比</th></tr></thead>
+      <tbody>${rows
+        .map(
+          (r) => `<tr class="${r.active ? "active" : ""}" ${r.attrs}>
+            <td><button type="button" class="dt-name" title="${esc(r.title)}">${esc(r.name)}</button></td>
+            ${r.cells.map((c) => `<td class="num">${esc(c)}</td>`).join("")}
+            <td class="dt-share"><span class="dt-bar"><span class="bar-track"><i class="bar-fill" style="width:${Math.max(2, Math.round(r.pct))}%"></i></span><span class="dt-pct">${Math.round(r.pct)}%</span></span></td>
+          </tr>`
+        )
+        .join("")}</tbody>
+    </table></div>`;
+}
+
+const money = (v) => (v ? "$" + v.toFixed(2) : "—");
+
+// renderProjectRanking compares projects within the active agent tab. It is a
+// cross-project view, so it hides while a single project is selected.
 function renderProjectRanking(el, projects) {
   if (!el) return;
+  const panel = $("ranking-panel");
+  if (panel) panel.hidden = !!state.cwd;
+  if (state.cwd) return;
   const list = projects || [];
   if (!list.length) return emptyPanel(el, "ranking-sub", "暂无项目");
-  const top = list.slice(0, 8);
-  const max = Math.max(...top.map((p) => p.tokens || 1));
-  barRows(
-    el,
+  const sum = list.reduce((n, p) => n + (p.tokens || 0), 0) || 1;
+  const top = [...list].sort((a, b) => (b.tokens || 0) - (a.tokens || 0)).slice(0, 10);
+  el.innerHTML = dataTable(
+    ["项目", "会话", "消息", "Tokens", "花费", "最近活跃"],
     top.map((p) => ({
+      attrs: `data-cwd="${esc(cwdKey(p.cwd))}"`,
       name: shortPath(p.cwd),
-      title: p.cwd || "(未知目录)",
-      pct: (p.tokens / max) * 100,
-      value: `${p.count} 会话 · ${fmtNum(p.tokens)}`,
-      tip: `${p.cwd || "(未知目录)"} · ${p.count} 会话 · ${fmtNum(p.messages)} 消息 · ${fmtNum(p.tokens)} tokens${p.cost ? " · $" + p.cost.toFixed(2) : ""}`,
+      title: (p.cwd || "(未知目录)") + " · 点击筛选该项目",
+      cells: [p.count, fmtNum(p.messages), fmtNum(p.tokens), money(p.cost), fmtTime(p.updatedAt)],
+      pct: ((p.tokens || 0) / sum) * 100,
     }))
   );
   const sub = $("ranking-sub");
-  if (sub) sub.textContent = "按 Token · 当前标签";
+  if (sub) sub.textContent = `${list.length} 个项目 · 按 Token · ${TAB_LABEL[state.agent] || state.agent} · 点击行筛选`;
 }
 
 // renderToolsFull shows the whole tool ranking (not just the project-page top 6).
@@ -228,7 +336,8 @@ function renderToolsFull(el, st) {
   const max = tools[0].count || 1;
   barRows(
     el,
-    tools.slice(0, 20).map((t) => ({
+    // Same row cap as the models panel so the two side-by-side cards line up.
+    tools.slice(0, 8).map((t) => ({
       name: t.tool,
       pct: (t.count / max) * 100,
       value: `${fmtNum(t.count)} · ${total ? Math.round((t.count / total) * 100) : 0}%`,
@@ -236,7 +345,7 @@ function renderToolsFull(el, st) {
     }))
   );
   const sub = $("tools-sub");
-  if (sub) sub.textContent = `共 ${fmtNum(total)} 次调用`;
+  if (sub) sub.textContent = `共 ${fmtNum(total)} 次调用 · ${tools.length} 种工具 · 前 8`;
 }
 
 // renderAgentCompare is the per-agent overview table in the dashboard.
@@ -244,19 +353,21 @@ export function renderAgentCompare(el, agents) {
   if (!el) return;
   const list = agents || [];
   if (!list.length) return emptyPanel(el, "agent-sub", "暂无数据");
-  const max = Math.max(...list.map((a) => a.sessions || 1));
-  barRows(
-    el,
+  const tok = (a) => (a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheRead || 0);
+  const sum = list.reduce((n, a) => n + tok(a), 0) || 1;
+  el.innerHTML = dataTable(
+    ["Agent", "会话", "消息", "输入", "输出", "缓存读", "缓存命中", "花费"],
     list.map((a) => ({
+      attrs: `data-agent="${esc(a.agent)}"`,
+      active: a.agent === state.agent,
       name: TAB_LABEL[a.agent] || a.agent,
-      title: a.agent,
-      pct: ((a.sessions || 0) / max) * 100,
-      value: `${a.sessions} 会话 · $${(a.cost || 0).toFixed(2)}`,
-      tip: `${a.agent} · ${a.sessions} 会话 · ${fmtNum(a.messages)} 消息 · ${fmtNum((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheRead || 0))} tokens · $${(a.cost || 0).toFixed(2)}`,
+      title: a.agent === state.agent ? "再次点击回到全部" : "点击切换到该 agent",
+      cells: [a.sessions, fmtNum(a.messages), fmtNum(a.tokensIn), fmtNum(a.tokensOut), fmtNum(a.cacheRead), (cacheRate(a) * 100).toFixed(1) + "%", money(a.cost)],
+      pct: (tok(a) / sum) * 100,
     }))
   );
   const sub = $("agent-sub");
-  if (sub) sub.textContent = `${list.length} 个 agent`;
+  if (sub) sub.textContent = `${list.length} 个 agent · 占比按 Token${state.cwd ? " · 当前项目" : ""} · 点击行切换`;
 }
 
 // settle turns a fetch promise into {ok, v} so one failing panel never blanks
@@ -294,8 +405,9 @@ export async function loadPanels() {
 }
 
 export function paintPanels() {
+  renderKPI($("kpi-body"), state.trend, state.total);
   renderActivity($("activity-body"), state.trend, state.hmRange, state.hmMetric, true);
-  renderTrend($("trend-body"), state.trend, state.hmRange, state.trendMetric);
+  renderTrend($("trend-body"), state.trend, state.hmRange, state.hmMetric);
   renderModels($("models-body"), state.models);
   renderProjectRanking($("ranking-body"), state.projects);
   renderToolsFull($("tools-body"), state.tools);

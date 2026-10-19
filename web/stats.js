@@ -3,7 +3,7 @@
 import { $, esc, fmtNum, fmtTime, fmtDate, TAB_LABEL, notify } from "./util.js";
 import { state } from "./state.js";
 import { api, scopeParams } from "./api.js";
-import { renderAgentCompare } from "./dashboard.js";
+import { renderAgentCompare, renderKPI } from "./dashboard.js";
 
 export async function loadStats() {
   try {
@@ -26,7 +26,9 @@ export async function loadStats() {
     const all = (d.agents || []).reduce((n, a) => n + (a.sessions || 0), 0);
     renderTabs(counts, all);
     state.agents = d.agents || [];
+    state.total = t;
     renderAgentCompare($("agent-body"), state.agents);
+    renderKPI($("kpi-body"), state.trend, state.total);
   } catch (e) {
     $("stats").innerHTML = `<span class="stat">统计加载失败</span>`;
     notify(e.message);

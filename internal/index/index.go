@@ -148,8 +148,9 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	// v4: activity/tool histograms + parent links; v5: MultiEdit alias fix;
 	// v6: OpenCode parent_id relabelled as "subagent" (was "fork");
 	// v7: session_source membership table; v8: per-source usage table
-	// (session totals are summed from their resources).
-	const schemaVersion = "8"
+	// (session totals are summed from their resources); v9: Claude usage
+	// deduped per message id, Codex input excludes cached tokens.
+	const schemaVersion = "9"
 	var ver string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&ver)
 	if ver != schemaVersion {

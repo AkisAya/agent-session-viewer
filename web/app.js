@@ -82,6 +82,7 @@ $("hm-metric").addEventListener("click", (e) => {
   state.hmMetric = b.dataset.m;
   setSeg("#hm-metric", b);
   renderActivity($("activity-body"), state.trend, state.hmRange, state.hmMetric, true);
+  renderTrend($("trend-body"), state.trend, state.hmRange, state.hmMetric);
 });
 $("hm-range").addEventListener("click", (e) => {
   const b = e.target.closest("button");
@@ -90,12 +91,19 @@ $("hm-range").addEventListener("click", (e) => {
   setSeg("#hm-range", b);
   paintPanels();
 });
-$("trend-metric").addEventListener("click", (e) => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  state.trendMetric = b.dataset.m;
-  setSeg("#trend-metric", b);
-  renderTrend($("trend-body"), state.trend, state.hmRange, state.trendMetric);
+/* comparison tables: a row click switches the agent tab / project scope */
+$("agent-body").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-agent]");
+  if (!tr) return;
+  const target = tr.dataset.agent === state.agent ? "" : tr.dataset.agent;
+  const tab = document.querySelector(`#tabs .tab[data-agent="${target}"]`);
+  if (tab) tab.click();
+});
+$("ranking-body").addEventListener("click", async (e) => {
+  const tr = e.target.closest("tr[data-cwd]");
+  if (!tr) return;
+  state.cwd = tr.dataset.cwd;
+  await scopeChanged();
 });
 
 document.addEventListener("click", (e) => {

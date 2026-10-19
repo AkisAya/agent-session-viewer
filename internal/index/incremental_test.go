@@ -222,8 +222,9 @@ func TestCodexMultiFileTokensSum(t *testing.T) {
 		t.Fatalf("sessions = %d, want 1", len(sessions))
 	}
 	s := sessions["cx"]
-	if s.TokensIn != 150 || s.TokensOut != 30 || s.CacheRead != 7 {
-		t.Fatalf("tokens = in:%d out:%d cache:%d, want 150/30/7", s.TokensIn, s.TokensOut, s.CacheRead)
+	// input_tokens includes the cached part, so In stores the uncached rest.
+	if s.TokensIn != 143 || s.TokensOut != 30 || s.CacheRead != 7 {
+		t.Fatalf("tokens = in:%d out:%d cache:%d, want 143/30/7", s.TokensIn, s.TokensOut, s.CacheRead)
 	}
 }
 
