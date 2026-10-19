@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+### Added
+
+- **上下文压缩（compact）提示**：四个 agent 的压缩都能识别——Claude Code 的 `isCompactSummary` / `compact_boundary`、Codex 的 `compacted`、OpenCode 的 `compaction`（新格式消息与旧格式 compaction 模式回复，失败的不计）、DSH 的 `compaction/summary`。
+  - 对话详情在压缩发生处显示分隔线（「上下文压缩 #N」+ 时间），压缩摘要默认折叠、展开按 Markdown 渲染；右侧大纲有对应条目，导出 Markdown 带「上下文压缩」小节；统计行显示「压缩 N 次」。
+  - 会话卡片显示「compact ×N」标签（与 subagent 标签同款），次数写入索引，按来源文件累加。
+- 对话详情的统计行拆分为输入 / 输出 / 缓存读，并显示缓存命中率。
+
+### Changed
+
+- Claude 的输入 Token 计入 `cache_creation_input_tokens`（缓存写入同属未命中缓存的输入；部分网关下 `input_tokens` 恒为 0、全部记在这里），Claude 的输入总量与缓存命中率会随之变化。
+- 索引 schema 升至 v10，升级后首次启动会全量重扫一次。
+
+### Fixed
+
+- 长对话（300 条以上）点击右侧大纲无法精确定位、滚动条反复抽搐：去掉消息上的 `content-visibility: auto`，其占位高度在平滑滚动途中被真实高度替换，导致目标位移并与滚动锚定互相拉扯。
+- Claude Code 的压缩摘要不再被当成一条用户消息显示。
+
 ## [0.5.0] - 2026-10-19
 
 ### Added

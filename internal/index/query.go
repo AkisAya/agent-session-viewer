@@ -61,27 +61,8 @@ func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
 	}
 	args = append(args, limit)
 
-	q := `SELECT agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,parent_id,relation
-		FROM session WHERE ` + strings.Join(where, " AND ") + ` ORDER BY ` + order + ` LIMIT ?`
-	rows, err := ix.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []model.Session
-	for rows.Next() {
-		var s model.Session
-		var created, updated int64
-		if err := rows.Scan(&s.Agent, &s.ID, &s.Title, &s.Preview, &s.CWD, &s.Model, &created, &updated,
-			&s.MsgCount, &s.TokensIn, &s.TokensOut, &s.CacheRead, &s.Cost, &s.ParentID, &s.Relation); err != nil {
-			return nil, err
-		}
-		s.CreatedAt = unixNano(created)
-		s.UpdatedAt = unixNano(updated)
-		out = append(out, s)
-	}
-	return out, rows.Err()
+	return ix.selectSessions(`SELECT `+sessionCols+` FROM session WHERE `+
+		strings.Join(where, " AND ")+` ORDER BY `+order+` LIMIT ?`, args)
 }
 
 // Stats aggregates per-agent and total metrics.
@@ -413,7 +394,7 @@ func pairClause(lhs, rhs string, pairs [][2]string) (string, []any) {
 
 // sessionCols is the column list behind model.Session.
 const sessionCols = `agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,
-	tokens_in,tokens_out,cache_read,cost,parent_id,relation`
+	tokens_in,tokens_out,cache_read,cost,parent_id,relation,compacts`
 
 func (ix *Index) selectSessions(q string, args []any) ([]model.Session, error) {
 	var out []model.Session
@@ -431,7 +412,7 @@ func (ix *Index) eachSession(q string, args []any, fn func(model.Session)) error
 		var s model.Session
 		var created, updated int64
 		if err := rows.Scan(&s.Agent, &s.ID, &s.Title, &s.Preview, &s.CWD, &s.Model, &created, &updated,
-			&s.MsgCount, &s.TokensIn, &s.TokensOut, &s.CacheRead, &s.Cost, &s.ParentID, &s.Relation); err != nil {
+			&s.MsgCount, &s.TokensIn, &s.TokensOut, &s.CacheRead, &s.Cost, &s.ParentID, &s.Relation, &s.Compacts); err != nil {
 			return err
 		}
 		s.CreatedAt = unixNano(created)

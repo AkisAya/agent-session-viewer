@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS session (
   cost        REAL NOT NULL DEFAULT 0,
   parent_id   TEXT NOT NULL DEFAULT '',
   relation    TEXT NOT NULL DEFAULT '',
+  compacts    INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, id)
 );
 CREATE INDEX IF NOT EXISTS session_updated_idx ON session(updated_at DESC);
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS session_usage (
   tokens_out INTEGER NOT NULL DEFAULT 0,
   cache_read INTEGER NOT NULL DEFAULT 0,
   cost       REAL NOT NULL DEFAULT 0,
+  compacts   INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, id, src)
 );
 CREATE INDEX IF NOT EXISTS session_usage_src_idx ON session_usage(agent, src);
@@ -142,6 +144,8 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	_, _ = db.Exec(`ALTER TABLE session ADD COLUMN preview TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE session ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE session ADD COLUMN relation TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE session ADD COLUMN compacts INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE session_usage ADD COLUMN compacts INTEGER NOT NULL DEFAULT 0`)
 
 	// Bump when the parsing/extraction changes in a way that requires a full
 	// re-scan (cursors are invalidated so every source is re-read once).
@@ -149,8 +153,9 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	// v6: OpenCode parent_id relabelled as "subagent" (was "fork");
 	// v7: session_source membership table; v8: per-source usage table
 	// (session totals are summed from their resources); v9: Claude usage
-	// deduped per message id, Codex input excludes cached tokens.
-	const schemaVersion = "9"
+	// deduped per message id, Codex input excludes cached tokens; v10:
+	// per-session compaction count, Claude input includes cache writes.
+	const schemaVersion = "10"
 	var ver string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&ver)
 	if ver != schemaVersion {

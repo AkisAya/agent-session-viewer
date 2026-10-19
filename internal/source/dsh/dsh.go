@@ -257,6 +257,7 @@ func (s *Source) scanFile(path, dirName string, cur source.Cursor, emit func(sou
 		CreatedAt: msTime(acc.header.CreatedAt),
 		UpdatedAt: msTime(acc.maxT),
 		Msgs:      source.Counter{Value: acc.msgs},
+		Compacts:  source.Counter{Value: acc.compacts},
 		Tokens:    source.Usage{In: acc.tin, Out: acc.tout, Cache: acc.cache},
 		Activity:  source.Histogram{Counts: acc.activity},
 		Tools:     source.Histogram{Counts: acc.tools},
@@ -278,6 +279,7 @@ func (s *Source) scanFile(path, dirName string, cur source.Cursor, emit func(sou
 	if full {
 		// A whole-file parse is authoritative for this resource.
 		d.Msgs.Replace = true
+		d.Compacts.Replace = true
 		d.Tokens.Replace = true
 		d.Cost.Replace = true
 		d.Activity.Replace = true
@@ -298,6 +300,7 @@ type accumulator struct {
 	maxT      int64
 
 	msgs     int
+	compacts int
 	tin      int64
 	tout     int64
 	cache    int64
@@ -387,6 +390,7 @@ func (a *accumulator) apply(raw []byte, full bool) {
 	case "compaction/summary":
 		// Compaction is a real model call: count its usage so the session's
 		// token totals match DSH's own accounting.
+		a.compacts++
 		var d compactionData
 		if json.Unmarshal(e.Data, &d) == nil {
 			if model := qualifyModel(d.Provider, d.Model); model != "" {
@@ -666,6 +670,14 @@ func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) 
 						out = append(out, model.Message{Role: "tool", Text: "[tool: " + b.Name + "]", Timestamp: ts})
 					}
 				}
+			}
+
+		case "compaction/summary":
+			var d struct {
+				Summary []contentBlock `json:"summary"`
+			}
+			if json.Unmarshal(e.Data, &d) == nil {
+				out = append(out, model.Message{Role: "compact", Text: contentText(d.Summary), Timestamp: ts})
 			}
 
 		case "tool/call":

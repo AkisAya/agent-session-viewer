@@ -18,6 +18,7 @@ type Session struct {
 	TokensOut int64     `json:"tokensOut"`
 	CacheRead int64     `json:"cacheRead"`
 	Cost      float64   `json:"cost"`
+	Compacts  int       `json:"compacts,omitempty"` // context compactions
 
 	// ParentID is the session this one belongs to; Relation labels the link
 	// ("subagent" | "fork" | "resume"). Empty ParentID means a root session.
@@ -28,7 +29,9 @@ type Session struct {
 }
 
 // Message is one turn of a conversation. Role is one of:
-// user | assistant | reasoning | tool | system.
+// user | assistant | reasoning | tool | system | compact.
+// A "compact" message marks a context compaction; Text is the summary the
+// agent carried forward (may be empty when the source does not record it).
 type Message struct {
 	Role      string    `json:"role"`
 	Text      string    `json:"text"`

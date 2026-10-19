@@ -305,6 +305,57 @@ func TestTranscript(t *testing.T) {
 	}
 }
 
+// A manual /compact appends a compaction/summary (a real model call with its
+// own usage) and an injected compact-checkpoint user message. The usage counts
+// toward the session; the checkpoint is neither a user turn nor transcript text.
+func TestScanCompaction(t *testing.T) {
+	root := t.TempDir()
+	writeSession(t, root, "session-abc", true,
+		zstdFrame(t, headerLine),
+		zstdFrame(t, userLine, assistant),
+		zstdFrame(t,
+			`{"type":"compaction/start","seq":20,"time":1767225603000,"data":{"compactionId":"k1"}}`,
+			`{"type":"compaction/summary","seq":21,"time":1767225604000,"data":{"compactionId":"k1","summary":[{"type":"text","text":"## summary"}],"provider":"deepseek-official","model":"deepseek-pro","usage":{"inputTokens":7,"outputTokens":11,"cacheReadTokens":13}}}`,
+			`{"type":"user/message","seq":22,"time":1767225604000,"data":{"content":[{"type":"text","text":"checkpoint text"}],"source":{"kind":"compact-checkpoint"}}}`,
+			`{"type":"compaction/end","seq":23,"time":1767225604000,"data":{"compactionId":"k1"}}`),
+	)
+
+	deltas, _ := scan(t, &Source{Root: root}, nil)
+	if len(deltas) != 1 {
+		t.Fatalf("got %d deltas, want 1", len(deltas))
+	}
+	d := deltas[0]
+	if d.Msgs.Value != 2 {
+		t.Fatalf("msgs = %d, want 2 (checkpoint excluded)", d.Msgs.Value)
+	}
+	if d.Tokens.In != 17 || d.Tokens.Out != 16 || d.Tokens.Cache != 113 {
+		t.Fatalf("tokens = %+v, want 17/16/113 (assistant + compaction)", d.Tokens)
+	}
+	if d.Compacts.Value != 1 || !d.Compacts.Replace {
+		t.Fatalf("compacts = %+v, want 1 replace", d.Compacts)
+	}
+
+	msgs, err := (&Source{Root: root}).Transcript("session-abc", nil)
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	compacts := 0
+	for _, m := range msgs {
+		if m.Text == "checkpoint text" {
+			t.Fatalf("checkpoint leaked into the transcript: %+v", msgs)
+		}
+		if m.Role == "compact" {
+			compacts++
+			if m.Text != "## summary" {
+				t.Fatalf("compact marker text = %q, want the summary", m.Text)
+			}
+		}
+	}
+	if compacts != 1 || msgs[len(msgs)-1].Role != "compact" {
+		t.Fatalf("want one compact marker at the end, got %+v", msgs)
+	}
+}
+
 func TestTranscriptUsesHint(t *testing.T) {
 	root := t.TempDir()
 	path := writeSession(t, root, "session-abc", false, rawFrame(headerLine), rawFrame(userLine))

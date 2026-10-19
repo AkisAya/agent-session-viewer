@@ -85,6 +85,7 @@ export function renderList(rows) {
             <span class="badge ${esc(s.agent)}">${esc(s.agent)}</span>
             ${s.model ? `<span class="card-model" title="${esc(s.model)}">${esc(shortModel(s.model))}</span>` : ""}
             ${subs ? `<span class="tag-sub" title="包含 ${subs} 个 subagent 会话，打开详情页查看">subagent ×${subs}</span>` : ""}
+            ${s.compacts ? `<span class="tag-sub tag-compact" title="上下文压缩 ${s.compacts} 次，打开详情页查看压缩摘要">compact ×${s.compacts}</span>` : ""}
             <span>${s.msgCount || 0} 条</span>
             <span class="tok">${fmtNum(tokens)} tokens</span>
             ${s.cost ? `<span>$${Number(s.cost).toFixed(2)}</span>` : ""}

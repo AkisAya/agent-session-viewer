@@ -77,6 +77,7 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 	previews := s.previews(db)
 	activity := s.activity(db)
 	tools := s.toolCounts(db)
+	compacts := s.compactCounts(db)
 
 	rows, err := db.Query(`SELECT id, COALESCE(title,''), COALESCE(directory,''), COALESCE(model,''),
 		COALESCE(agent,''), COALESCE(tokens_input,0), COALESCE(tokens_output,0),
@@ -112,6 +113,7 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 			CreatedAt: time.UnixMilli(created),
 			UpdatedAt: time.UnixMilli(updated),
 			Msgs:      source.Counter{Replace: true, Value: msgCounts[id]},
+			Compacts:  source.Counter{Replace: true, Value: compacts[id]},
 			Tokens:    source.Usage{Replace: true, In: tin, Out: tout, Cache: cache},
 			Cost:      source.Amount{Replace: true, Value: cost},
 			Activity:  source.Histogram{Replace: true, Counts: activity[id]},
@@ -133,6 +135,39 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 		next[watermarkKey] = source.Cursor{Size: sessCount, Mtime: sessMaxUpdated}
 	}
 	return next, nil
+}
+
+// compactCounts counts completed context compactions per session: the
+// "compaction" rows of the current format, or the "compaction"-mode summary
+// messages of legacy sessions.
+func (s *Source) compactCounts(db *sql.DB) map[string]int {
+	out := map[string]int{}
+	read := func(q string) error {
+		rows, err := db.Query(q)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			var n int
+			if rows.Scan(&id, &n) == nil {
+				out[id] += n
+			}
+		}
+		return rows.Err()
+	}
+	_ = read(`SELECT session_id, count(*) FROM session_message
+		WHERE type = 'compaction' AND COALESCE(json_extract(data,'$.status'),'') <> 'failed'
+		GROUP BY session_id`)
+	const legacy = `SELECT session_id, count(*) FROM message
+		WHERE json_extract(data,'$.mode') = 'compaction'`
+	if read(legacy+` AND session_id NOT IN (SELECT DISTINCT session_id FROM session_message)
+		GROUP BY session_id`) != nil {
+		// session_message is missing entirely: every session is legacy.
+		_ = read(legacy + ` GROUP BY session_id`)
+	}
+	return out
 }
 
 // sessionIDs lists every session id cheaply, so the fast path can still report
@@ -378,6 +413,8 @@ func (s *Source) transcriptLegacy(db *sql.DB, id string) ([]model.Message, error
 			role = legacyRole(mdata)
 			roles[mid] = role
 		}
+		// The summary written by a compaction run is an assistant message in
+		// "compaction" mode; legacyRole maps it to the compaction marker.
 		text := partText(pdata)
 		if strings.TrimSpace(text) == "" {
 			continue
@@ -436,6 +473,14 @@ func renderSessionMessages(typ, data string) []model.Message {
 		if t := strings.TrimSpace(d.Text); t != "" {
 			return []model.Message{{Role: "system", Text: t}}
 		}
+	case "compaction":
+		var d struct {
+			Status  string `json:"status"`
+			Summary string `json:"summary"`
+		}
+		if json.Unmarshal([]byte(data), &d) == nil && d.Status != "failed" {
+			return []model.Message{{Role: "compact", Text: strings.TrimSpace(d.Summary)}}
+		}
 	}
 	return nil
 }
@@ -443,8 +488,12 @@ func renderSessionMessages(typ, data string) []model.Message {
 func legacyRole(data string) string {
 	var m struct {
 		Role string `json:"role"`
+		Mode string `json:"mode"`
 	}
 	if json.Unmarshal([]byte(data), &m) == nil && m.Role != "" {
+		if m.Role == "assistant" && m.Mode == "compaction" {
+			return "compact"
+		}
 		return m.Role
 	}
 	return "assistant"

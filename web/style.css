@@ -651,6 +651,21 @@ mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; paddi
 .rail-item.assistant .rail-dot { background: var(--codex); }
 .rail-item.reasoning .rail-dot { background: var(--opencode); }
 .rail-item.tool .rail-dot { background: var(--claude); }
+.rail-item.compact { color: var(--claude); font-weight: 600; }
+.rail-item.compact .rail-dot { background: var(--claude); border-radius: 2px; }
+
+/* context-compaction marker in the transcript */
+.msg.compact { gap: 6px; margin: 4px 0; }
+.compact-line { display: flex; align-items: center; gap: 10px; color: var(--claude); font-size: 11.5px; font-weight: 700; }
+.compact-line::before, .compact-line::after { content: ""; height: 1px; flex: 1; border-top: 1px dashed color-mix(in srgb, var(--claude) 60%, transparent); }
+.compact-line .msg-time { color: var(--muted-2); }
+.compact-sum > summary { cursor: pointer; color: var(--muted); font-size: 12px; text-align: center; list-style: none; }
+.compact-sum > summary::-webkit-details-marker { display: none; }
+.compact-sum > summary::before { content: "▸ "; }
+.compact-sum[open] > summary::before { content: "▾ "; }
+.compact-sum > summary:hover { color: var(--fg); }
+.compact-sum > .msg-body { margin-top: 6px; border-color: color-mix(in srgb, var(--claude) 45%, var(--border)); }
+.compact-empty { color: var(--muted-2); font-size: 11.5px; text-align: center; }
 .rail-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .detail-rel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px; }
@@ -788,6 +803,8 @@ mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; paddi
 /* only the detail-modal tag is a jump link */
 button.tag-sub { cursor: pointer; }
 button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
+/* compaction count: same pill, tinted like the transcript's compaction marker */
+.tag-compact { color: var(--claude); border-color: color-mix(in srgb, var(--claude) 45%, var(--border)); }
 
 .card-resume {
   background: none;
@@ -801,12 +818,6 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
   flex: 0 0 auto;
 }
 .card-resume:hover { color: var(--accent); border-color: var(--accent); }
-
-/* ---------- large-transcript rendering ---------- */
-/* For very long conversations, let the browser skip layout/paint of messages
-   that are far outside the viewport. `auto` remembers the last real size, so
-   scroll position and the outline rail stay accurate after first paint. */
-.messages.big .msg { content-visibility: auto; contain-intrinsic-size: auto 200px; }
 
 /* ---------- motion ---------- */
 @media (prefers-reduced-motion: reduce) {

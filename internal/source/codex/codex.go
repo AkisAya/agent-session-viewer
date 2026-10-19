@@ -200,6 +200,8 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 				provider = source.FirstText(provider, m.ModelProvider)
 				parentThread = source.FirstText(parentThread, m.ParentThreadID)
 			}
+		case "compacted":
+			d.Compacts.Value++
 		case "turn_context":
 			var tc struct {
 				Model string `json:"model"`
@@ -303,6 +305,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 		// A whole-file parse is authoritative for this resource.
 		d.Activity.Replace = true
 		d.Tools.Replace = true
+		d.Compacts.Replace = true
 		if sumCounts(evAct) == 0 && sumCounts(respAct) > 0 {
 			// Only the response stream carries conversation items here, and
 			// this parse saw the whole file, so it is authoritative.
@@ -382,6 +385,17 @@ func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) 
 			}
 			ts := parseTime(l.Timestamp)
 			switch l.Type {
+			case "compacted":
+				// Context compaction; payload.message is the carried-forward
+				// summary. Added to both streams since either may be shown.
+				var c struct {
+					Message string `json:"message"`
+				}
+				if json.Unmarshal(l.Payload, &c) == nil {
+					m := model.Message{Role: "compact", Text: strings.TrimSpace(c.Message), Timestamp: ts}
+					evOut = append(evOut, m)
+					respOut = append(respOut, m)
+				}
 			case "event_msg":
 				var ev eventMsg
 				if json.Unmarshal(l.Payload, &ev) != nil || ev.Type != "item_completed" || ev.Item == nil {
@@ -411,11 +425,22 @@ func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) 
 		}
 	}
 	out := evOut
-	if len(out) == 0 {
+	if !hasConversation(out) {
 		out = respOut // older rollouts only carry response_item messages
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Timestamp.Before(out[j].Timestamp) })
 	return out, nil
+}
+
+// hasConversation reports whether msgs holds anything besides compaction
+// markers, which both streams share.
+func hasConversation(msgs []model.Message) bool {
+	for _, m := range msgs {
+		if m.Role != "compact" {
+			return true
+		}
+	}
+	return false
 }
 
 // locateAll resolves the rollout files of a session, preferring the paths the

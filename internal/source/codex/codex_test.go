@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/akisaya/agent-session-viewer/internal/source"
 )
 
 const testID = "11111111-1111-1111-1111-111111111111"
@@ -48,6 +50,34 @@ func TestTranscriptMergesRolloutFiles(t *testing.T) {
 	}
 	if len(msgs) != 2 || msgs[0].Text != "first" || msgs[1].Text != "second" {
 		t.Fatalf("merged transcript = %+v, want first then second", msgs)
+	}
+}
+
+// A "compacted" line marks a context compaction; its message is the summary
+// and must appear in order between the turns around it.
+func TestTranscriptCompacted(t *testing.T) {
+	dir := t.TempDir()
+	writeLines(t, rollout(dir, "2026-02-01T11-00-00"),
+		`{"type":"session_meta","timestamp":"2026-02-01T11:00:00Z","payload":{"session_id":"`+testID+`","cwd":"/tmp/q"}}`,
+		`{"type":"event_msg","timestamp":"2026-02-01T11:00:05Z","payload":{"type":"item_completed","item":{"type":"UserMessage","content":[{"text":"before"}]}}}`,
+		`{"type":"compacted","timestamp":"2026-02-01T11:10:00Z","payload":{"message":"summary of earlier work","replacement_history":[]}}`,
+		`{"type":"event_msg","timestamp":"2026-02-01T11:10:00Z","payload":{"type":"item_completed","item":{"type":"ContextCompaction","id":"x"}}}`,
+		`{"type":"event_msg","timestamp":"2026-02-01T11:11:00Z","payload":{"type":"item_completed","item":{"type":"AgentMessage","content":[{"text":"after"}]}}}`)
+
+	var compacts int
+	if _, err := (&Source{Root: dir}).Scan(nil, func(d source.Delta) { compacts += d.Compacts.Value }); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if compacts != 1 {
+		t.Fatalf("scan compacts = %d, want 1", compacts)
+	}
+
+	msgs, err := (&Source{Root: dir}).Transcript(testID, nil)
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if len(msgs) != 3 || msgs[1].Role != "compact" || msgs[1].Text != "summary of earlier work" || msgs[2].Text != "after" {
+		t.Fatalf("transcript = %+v, want before / compact / after", msgs)
 	}
 }
 

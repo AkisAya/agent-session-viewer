@@ -96,8 +96,8 @@ func (s snapshot) canon() string {
 	var b strings.Builder
 	for _, id := range ids {
 		x := s.sessions[id]
-		fmt.Fprintf(&b, "S %s title=%q preview=%q cwd=%q model=%q msgs=%d tin=%d tout=%d cache=%d cost=%g parent=%q rel=%q created=%d updated=%d\n",
-			id, x.Title, x.Preview, x.CWD, x.Model, x.MsgCount, x.TokensIn, x.TokensOut, x.CacheRead, x.Cost,
+		fmt.Fprintf(&b, "S %s title=%q preview=%q cwd=%q model=%q msgs=%d compacts=%d tin=%d tout=%d cache=%d cost=%g parent=%q rel=%q created=%d updated=%d\n",
+			id, x.Title, x.Preview, x.CWD, x.Model, x.MsgCount, x.Compacts, x.TokensIn, x.TokensOut, x.CacheRead, x.Cost,
 			x.ParentID, x.Relation, x.CreatedAt.UnixNano(), x.UpdatedAt.UnixNano())
 	}
 	for _, a := range s.activity {
@@ -194,6 +194,12 @@ func TestDSHIncrementalMatchesFull(t *testing.T) {
 			`{"type":"tool/call","seq":11,"time":1767225602000,"data":{"callId":"c1","name":"bash","arguments":"{}"}}`,
 		},
 		[]string{
+			// Manual /compact, shaped like a real log: the summary call carries
+			// usage, and the injected checkpoint must not count as a user turn.
+			`{"type":"compaction/start","seq":12,"time":1767225602500,"data":{"compactionId":"k1"}}`,
+			`{"type":"compaction/summary","seq":13,"time":1767225602600,"data":{"compactionId":"k1","summary":[{"type":"text","text":"## summary"}],"provider":"deepseek-account","model":"deepseek-flash","usage":{"inputTokens":7,"outputTokens":11,"cacheReadTokens":13}}}`,
+			`{"type":"user/message","seq":14,"time":1767225602600,"data":{"content":[{"type":"text","text":"This is an automatically generated checkpoint"}],"source":{"kind":"compact-checkpoint"}}}`,
+			`{"type":"compaction/end","seq":15,"time":1767225602700,"data":{"compactionId":"k1"}}`,
 			`{"type":"session/title","seq":20,"time":1767225603000,"data":{"title":"DSH session"}}`,
 			`{"type":"user/message","seq":21,"time":1767225604000,"data":{"content":[{"type":"text","text":"follow up"}],"source":{"kind":"user"}}}`,
 			`{"type":"assistant/message","seq":22,"time":1767225605000,"data":{"message":{"role":"assistant","content":[{"type":"text","text":"done"}],"source":{"provider":"deepseek-account","model":"deepseek-flash"}},"usage":{"inputTokens":2,"outputTokens":3,"cacheReadTokens":4}}}`,

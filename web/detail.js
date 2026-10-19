@@ -31,8 +31,23 @@ function msgBodyHTML(m) {
   return `<div class="msg-body md">${html}</div>`;
 }
 
+// compactHTML renders a context-compaction marker: a divider that is always
+// visible, with the carried-forward summary folded inside.
+function compactHTML(m, i, time, n) {
+  const text = (m.text || "").trim();
+  const body = text
+    ? `<details class="compact-sum"><summary>查看压缩摘要（${fmtNum(text.length)} 字）</summary>
+        <div class="msg-body md">${window.md ? md.render(text) : esc(text)}</div></details>`
+    : `<div class="compact-empty">该 agent 未记录摘要内容</div>`;
+  return `<div class="msg compact" data-i="${i}">
+      <div class="compact-line"><span>上下文压缩 #${n}${time}</span></div>
+      ${body}
+    </div>`;
+}
+
 function renderMessages(msgs) {
   let prevDay = "";
+  let nCompact = 0;
   const html = msgs
     .map((m, i) => {
       const role = m.role || "system";
@@ -42,6 +57,7 @@ function renderMessages(msgs) {
       const divider = valid && day !== prevDay ? `<div class="msg-day"><span>${esc(fmtDayLabel(ts))}</span></div>` : "";
       if (valid) prevDay = day;
       const time = valid ? `<span class="msg-time">${esc(fmtClock(ts))}</span>` : "";
+      if (role === "compact") return divider + compactHTML(m, i, time, ++nCompact);
       return `${divider}<div class="msg ${esc(role)}" data-i="${i}">
         <div class="msg-role">${esc(role)}${time}</div>
         ${msgBodyHTML(m)}
@@ -49,7 +65,6 @@ function renderMessages(msgs) {
     })
     .join("");
   $("detail-body").innerHTML = html;
-  $("detail-body").classList.toggle("big", msgs.length > 300);
   buildRail(msgs);
 }
 
@@ -73,7 +88,7 @@ function buildRail(msgs) {
   msgs.forEach((m, i) => {
     const role = m.role || "system";
     if (!state.noise && isNoise(role)) return;
-    items.push({ i, role, text: railSnippet(m.text) });
+    items.push({ i, role, text: role === "compact" ? "⇣ 上下文压缩" : railSnippet(m.text) });
   });
   if (items.length < 3) {
     rail.hidden = true;
@@ -179,13 +194,16 @@ export function openDetail(s) {
       const noise = state.msgs.filter((m) => isNoise(m.role)).length;
       const reasoning = state.msgs.filter((m) => m.role === "reasoning").length;
       const toolMsgs = state.msgs.filter((m) => m.role === "tool").length;
-      const talk = state.msgs.length - noise;
-      const tokens = (s.tokensIn || 0) + (s.tokensOut || 0) + (s.cacheRead || 0);
+      const compacts = state.msgs.filter((m) => m.role === "compact").length;
+      const talk = state.msgs.length - noise - compacts;
+      const prompt = (s.tokensIn || 0) + (s.cacheRead || 0);
       $("detail-stats").textContent = [
         `${talk} 条对话`,
         reasoning ? `${reasoning} 条思考` : "",
         toolMsgs ? `${toolMsgs} 条工具` : "",
-        `${fmtNum(tokens)} tokens`,
+        compacts ? `压缩 ${compacts} 次` : "",
+        `输入 ${fmtNum(s.tokensIn)} · 输出 ${fmtNum(s.tokensOut)} · 缓存读 ${fmtNum(s.cacheRead)}`,
+        prompt ? `缓存命中 ${(((s.cacheRead || 0) / prompt) * 100).toFixed(1)}%` : "",
         s.cost ? `$${Number(s.cost).toFixed(2)}` : "",
         fmtDate(s.createdAt),
         s.id,
@@ -219,6 +237,9 @@ function transcriptMarkdown(s, msgs) {
     const when = ts && !isNaN(ts) && ts.getFullYear() > 2000 ? ` — ${fmtDate(ts)}` : "";
     if (role === "tool" || role === "system") {
       parts.push(`## ${role}${when}`, "", "```", m.text || "", "```", "");
+    } else if (role === "compact") {
+      const quoted = (m.text || "(未记录摘要)").split("\n").map((l) => "> " + l).join("\n");
+      parts.push(`## 上下文压缩${when}`, "", quoted, "");
     } else {
       parts.push(`## ${role}${when}`, "", m.text || "", "");
     }

@@ -83,6 +83,7 @@ const transcript = [
   { role: "reasoning", text: "thinking...", timestamp: "2026-01-01T12:00:01Z" },
   { role: "tool", text: "ls -la", timestamp: "2026-01-01T12:00:02Z" },
   { role: "assistant", text: "```go\nfmt.Println()\n```", timestamp: "2026-01-01T12:00:03Z" },
+  { role: "compact", text: "## Summary\nearlier work", timestamp: "2026-01-02T08:59:00Z" },
   { role: "user", text: "one more", timestamp: "2026-01-02T09:00:00Z" },
 ];
 globalThis.fetch = async (url) => {
@@ -127,13 +128,14 @@ assert(shortPath("/a/b/c/d") === "c/d", "shortPath keeps the tail");
 
 /* ---------- session list ---------- */
 renderList([
-  { agent: "claude", id: "s1", title: "Fix the bug", preview: "p", cwd: "/a/b/c", msgCount: 3, tokensIn: 1, tokensOut: 2, cacheRead: 3, cost: 0.5, model: "openai/gpt-5", updatedAt: "2026-01-01T12:00:00Z" },
+  { agent: "claude", id: "s1", title: "Fix the bug", preview: "p", cwd: "/a/b/c", msgCount: 3, tokensIn: 1, tokensOut: 2, cacheRead: 3, cost: 0.5, compacts: 2, model: "openai/gpt-5", updatedAt: "2026-01-01T12:00:00Z" },
   { agent: "claude", id: "s2", relation: "subagent", parentId: "s1", title: "child", updatedAt: "2026-01-01T12:00:00Z" },
 ]);
 const listHTML = cache.get("list").innerHTML;
 assert(listHTML.includes('data-id="s1"'), "renderList renders the parent card");
 assert(!listHTML.includes('data-id="s2"'), "renderList hides subagent cards");
 assert(listHTML.includes("subagent ×1"), "renderList counts children on the parent");
+assert(listHTML.includes("compact ×2"), "renderList shows the compaction count");
 
 /* ---------- dashboard ---------- */
 dash.renderActivity(cache.get("activity-body"), [{ day: "2026-01-02", msgs: 5, sessions: 1, tokens: 10 }], 90, "msgs", true);
@@ -167,12 +169,16 @@ assert(cache.get("activity-body").innerHTML.includes("hm-cell"), "renderActivity
 
 /* ---------- transcript modal ---------- */
 state.relations = [{ agent: "claude", id: "s1", title: "parent" }];
-detail.openDetail({ agent: "claude", id: "s1", title: "Fix the bug", cwd: "/a/b", model: "m", createdAt: "2026-01-01T12:00:00Z" });
+detail.openDetail({ agent: "claude", id: "s1", title: "Fix the bug", cwd: "/a/b", model: "m", tokensIn: 25, tokensOut: 4, cacheRead: 75, createdAt: "2026-01-01T12:00:00Z" });
 await new Promise((r) => setTimeout(r, 60));
 assert(cache.get("detail-stats").textContent.includes("3 条对话"), "openDetail renders the stats line");
 const body = cache.get("detail-body").innerHTML;
 assert(body.includes('class="msg user"') && body.includes("<strong>world</strong>"), "transcript renders markdown messages");
 assert(body.includes("md-code"), "transcript renders fenced code blocks");
+assert(body.includes("上下文压缩 #1") && body.includes("compact-sum") && body.includes("earlier work"), "transcript renders the compaction marker with its summary");
+assert(cache.get("detail-stats").textContent.includes("压缩 1 次"), "stats line counts compactions");
+assert(/输入 25 · 输出 4 · 缓存读 75/.test(cache.get("detail-stats").textContent), "stats line splits input / output / cache");
+assert(cache.get("detail-stats").textContent.includes("缓存命中 75.0%"), "stats line shows the cache hit rate");
 assert(cache.get("rail-list").innerHTML.includes("rail-item"), "transcript builds the outline rail");
 
 console.log("SMOKE OK: renders exercised with sample data");

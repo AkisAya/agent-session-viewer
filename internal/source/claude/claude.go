@@ -22,18 +22,22 @@ type Source struct {
 func (s *Source) Name() string { return "claude" }
 
 type entry struct {
-	Type        string          `json:"type"`
-	Timestamp   string          `json:"timestamp"`
-	SessionID   string          `json:"sessionId"`
-	CWD         string          `json:"cwd"`
-	IsSidechain bool            `json:"isSidechain"`
-	Message     json.RawMessage `json:"message"`
-	AiTitle     string          `json:"aiTitle"`
-	CustomTitle string          `json:"customTitle"`
-	LastPrompt  string          `json:"lastPrompt"`
-	Summary     string          `json:"summary"`
-	TotalCost   float64         `json:"totalCostUSD"`
-	ModelUsage  map[string]struct {
+	Type        string `json:"type"`
+	Subtype     string `json:"subtype"`
+	Timestamp   string `json:"timestamp"`
+	SessionID   string `json:"sessionId"`
+	CWD         string `json:"cwd"`
+	IsSidechain bool   `json:"isSidechain"`
+	// IsCompactSummary marks the injected user turn that carries the summary
+	// after a /compact (manual or automatic).
+	IsCompactSummary bool            `json:"isCompactSummary"`
+	Message          json.RawMessage `json:"message"`
+	AiTitle          string          `json:"aiTitle"`
+	CustomTitle      string          `json:"customTitle"`
+	LastPrompt       string          `json:"lastPrompt"`
+	Summary          string          `json:"summary"`
+	TotalCost        float64         `json:"totalCostUSD"`
+	ModelUsage       map[string]struct {
 		InputTokens              int64   `json:"inputTokens"`
 		OutputTokens             int64   `json:"outputTokens"`
 		CacheReadInputTokens     int64   `json:"cacheReadInputTokens"`
@@ -181,6 +185,10 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 					cost += mu.CostUSD
 				}
 			}
+		case "system":
+			if e.Subtype == "compact_boundary" {
+				d.Compacts.Value++
+			}
 		case "user", "assistant":
 			var m message
 			if json.Unmarshal(e.Message, &m) == nil {
@@ -189,7 +197,10 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 				}
 				if m.Usage != nil && (m.ID == "" || !seenUsage[m.ID]) {
 					seenUsage[m.ID] = m.ID != ""
-					d.Tokens.In += m.Usage.InputTokens
+					// Cache writes are uncached prompt tokens too (billed above
+					// the base rate); behind some gateways input_tokens is
+					// always 0 and everything lands here.
+					d.Tokens.In += m.Usage.InputTokens + m.Usage.CacheCreationInputTokens
 					d.Tokens.Out += m.Usage.OutputTokens
 					d.Tokens.Cache += m.Usage.CacheReadInputTokens
 				}
@@ -241,6 +252,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		d.Activity.Replace = true
 		d.Tools.Replace = true
 		d.Msgs.Replace = true
+		d.Compacts.Replace = true
 		d.Tokens.Replace = true
 	}
 	if sawCost {
@@ -311,6 +323,10 @@ func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) 
 			return nil
 		}
 		ts := parseTime(e.Timestamp)
+		if e.IsCompactSummary {
+			out = append(out, model.Message{Role: "compact", Text: contentText(m.Content), Timestamp: ts})
+			return nil
+		}
 		if content := blocksOf(m.Content); content != nil {
 			for _, b := range content {
 				role, text := blockMessage(e.Type, b)

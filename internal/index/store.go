@@ -38,21 +38,23 @@ func newWriter(tx *sql.Tx) (*writer, error) {
 		q   string
 	}{
 		{&w.insSession, `INSERT OR REPLACE INTO session
-			(agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,parent_id,relation)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`},
+			(agent,id,title,preview,cwd,model,created_at,updated_at,msg_count,tokens_in,tokens_out,cache_read,cost,parent_id,relation,compacts)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`},
 		{&w.getSession, `SELECT title,preview,cwd,model,created_at,updated_at,parent_id,relation
 			FROM session WHERE agent=? AND id=?`},
 		{&w.upUsage, `INSERT INTO session_usage
-			(agent,id,src,msg_count,tokens_in,tokens_out,cache_read,cost)
-			VALUES(?,?,?,?,?,?,?,?)
+			(agent,id,src,msg_count,tokens_in,tokens_out,cache_read,cost,compacts)
+			VALUES(?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(agent,id,src) DO UPDATE SET
 			  msg_count  = CASE WHEN ? THEN excluded.msg_count  ELSE session_usage.msg_count  + excluded.msg_count  END,
+			  compacts   = CASE WHEN ? THEN excluded.compacts   ELSE session_usage.compacts   + excluded.compacts   END,
 			  tokens_in  = CASE WHEN ? THEN excluded.tokens_in  ELSE session_usage.tokens_in  + excluded.tokens_in  END,
 			  tokens_out = CASE WHEN ? THEN excluded.tokens_out ELSE session_usage.tokens_out + excluded.tokens_out END,
 			  cache_read = CASE WHEN ? THEN excluded.cache_read ELSE session_usage.cache_read + excluded.cache_read END,
 			  cost       = CASE WHEN ? THEN excluded.cost       ELSE session_usage.cost       + excluded.cost       END`},
 		{&w.sumUsage, `SELECT COALESCE(sum(msg_count),0), COALESCE(sum(tokens_in),0),
-			COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0), COALESCE(sum(cost),0)
+			COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0), COALESCE(sum(cost),0),
+			COALESCE(sum(compacts),0)
 			FROM session_usage WHERE agent=? AND id=?`},
 		{&w.delActivity, `DELETE FROM activity WHERE agent=? AND id=? AND src=?`},
 		{&w.upActivity, `INSERT INTO activity(agent,id,src,day,msgs) VALUES(?,?,?,?,?)
@@ -103,8 +105,8 @@ func (w *writer) apply(agent string, d source.Delta) error {
 func (w *writer) applyUsage(agent string, d source.Delta) error {
 	_, err := w.upUsage.Exec(
 		agent, d.ID, srcKey(d),
-		d.Msgs.Value, d.Tokens.In, d.Tokens.Out, d.Tokens.Cache, d.Cost.Value,
-		flag(d.Msgs.Replace), flag(d.Tokens.Replace), flag(d.Tokens.Replace),
+		d.Msgs.Value, d.Tokens.In, d.Tokens.Out, d.Tokens.Cache, d.Cost.Value, d.Compacts.Value,
+		flag(d.Msgs.Replace), flag(d.Compacts.Replace), flag(d.Tokens.Replace), flag(d.Tokens.Replace),
 		flag(d.Tokens.Replace), flag(d.Cost.Replace))
 	return err
 }
@@ -165,10 +167,10 @@ func (w *writer) applySession(agent string, d source.Delta) error {
 		return err
 	}
 
-	var msg int
+	var msg, compacts int
 	var tin, tout, cache int64
 	var cost float64
-	if err := w.sumUsage.QueryRow(agent, d.ID).Scan(&msg, &tin, &tout, &cache, &cost); err != nil {
+	if err := w.sumUsage.QueryRow(agent, d.ID).Scan(&msg, &tin, &tout, &cache, &cost, &compacts); err != nil {
 		return err
 	}
 
@@ -193,7 +195,7 @@ func (w *writer) applySession(agent string, d source.Delta) error {
 
 	_, err = w.insSession.Exec(
 		agent, d.ID, r.title, r.preview, r.cwd, r.model, r.created, r.updated,
-		msg, tin, tout, cache, cost, r.parent, r.relation)
+		msg, tin, tout, cache, cost, r.parent, r.relation, compacts)
 	return err
 }
 

@@ -64,6 +64,7 @@ type Delta struct {
 	UpdatedAt time.Time
 
 	Msgs     Counter
+	Compacts Counter // context compactions (manual /compact or automatic)
 	Tokens   Usage
 	Cost     Amount
 	Activity Histogram

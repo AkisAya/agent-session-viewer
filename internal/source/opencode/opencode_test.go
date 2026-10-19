@@ -34,6 +34,8 @@ func buildDB(t *testing.T) string {
 		`INSERT INTO session_message VALUES ('s1','assistant',
 			'{"content":[{"type":"text","text":"hi"},{"type":"tool","name":"shell"},{"type":"reasoning","text":"think"}]}',
 			2,1735725605000)`,
+		`INSERT INTO session_message VALUES ('s1','compaction','{"status":"completed","reason":"auto","summary":"## Objective\nkept"}',3,1735725606000)`,
+		`INSERT INTO session_message VALUES ('s1','compaction','{"outcome":"failed","status":"failed"}',4,1735725607000)`,
 	}
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
@@ -72,6 +74,9 @@ func TestScan(t *testing.T) {
 	if !d.Msgs.Replace || !d.Tokens.Replace || !d.Cost.Replace {
 		t.Fatalf("OpenCode deltas must be authoritative: %+v", d)
 	}
+	if d.Compacts.Value != 1 || !d.Compacts.Replace {
+		t.Fatalf("compacts = %+v, want 1 (the failed compaction is not counted)", d.Compacts)
+	}
 	if d.Tools.Counts["shell"] != 1 {
 		t.Fatalf("tools = %+v, want shell=1", d.Tools)
 	}
@@ -89,6 +94,7 @@ func TestTranscript(t *testing.T) {
 		{"assistant", "hi"},
 		{"tool", "[tool: shell]"},
 		{"reasoning", "think"},
+		{"compact", "## Objective\nkept"}, // the failed compaction is dropped
 	}
 	if len(msgs) != len(wants) {
 		t.Fatalf("got %d messages, want %d: %+v", len(msgs), len(wants), msgs)
