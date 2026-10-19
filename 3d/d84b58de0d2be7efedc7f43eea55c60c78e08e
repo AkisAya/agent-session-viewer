@@ -1,0 +1,69 @@
+web/stats.js
+  s_735279e1ad9368::t_7ed2a991c88020 17,20
+  s_735279e1ad9368::t_98b49600ec7c6d 6
+CHANGELOG.md
+  s_735279e1ad9368::t_7681f1af4d0fd8 9-10
+  s_735279e1ad9368::t_00c78958dbff7a 171-172
+  s_735279e1ad9368::t_928a1ffb8748b0 33
+  s_735279e1ad9368::t_5ea0d6e95e12e6 16-17,21-24
+web/smoke.mjs
+  s_735279e1ad9368::t_a1c2b854e53688 135-140
+  s_735279e1ad9368::t_ee20b60bc6bb17 148
+  s_735279e1ad9368::t_b2ccbd7894f7c0 124-128
+  s_735279e1ad9368::t_c449ddf97e6143 182-186,189-192
+  s_735279e1ad9368::t_60a73b0850b705 196
+web/list.js
+  s_735279e1ad9368::t_83c6354d37d712 78-79,81-85,94-95
+  s_735279e1ad9368::t_08fdf3d88fb2ed 92
+  s_735279e1ad9368::t_fa140d1b50a688 52-54,56-59,61
+scripts/screenshots.mjs
+  s_735279e1ad9368::t_b2ed0730abed86 1-6,8-65,75-108,110-207,218-224,227-229,231,234,237,239-241,243-249
+  s_735279e1ad9368::t_22e35ea80f313b 7,210,212-213,215-217,225-226,230,232-233,235-236,238,242
+  s_735279e1ad9368::t_34ca8d19f63343 109
+  s_735279e1ad9368::t_158e8baabf8f8c 208-209,211,214
+web/detail.js
+  s_735279e1ad9368::t_dca2a763a71c48 332
+  s_735279e1ad9368::t_6566afffc69ab3 171-173
+  s_735279e1ad9368::t_5dd3fffb2bbaf0 82
+  s_735279e1ad9368::t_1b3e28221bde8c 42
+  s_735279e1ad9368::t_098eb2877cd3a5 75
+  s_735279e1ad9368::t_0c20dd67b66240 38-39,41,46
+  s_735279e1ad9368::t_e12bc89ccf2556 182-186
+  s_735279e1ad9368::t_ee3b6fdd7cf5dc 224-237
+  s_735279e1ad9368::t_b03632c0421dfb 200-201,203,205
+  s_735279e1ad9368::t_b05fe98e6bbf5c 202
+web/index.html
+  s_735279e1ad9368::t_898931b16b16da 142
+README.md
+  s_735279e1ad9368::t_4ae3b59603931d 9-10,24
+  s_735279e1ad9368::t_7bcd2df52a2dcb 22-23
+  s_735279e1ad9368::t_85b4c491d297f8 92
+web/style.css
+  s_735279e1ad9368::t_6d5ae0df2d000d 394-399,709-710
+  s_735279e1ad9368::t_52ff9320001c11 375-377,379
+  s_735279e1ad9368::t_0066e6bdcafad1 691-701,703-708,711-712
+  s_735279e1ad9368::t_b774c3742a16db 378,741
+  s_735279e1ad9368::t_5d2f80dd824276 295-296,298-308
+  s_735279e1ad9368::t_184d6c3bc47dbe 383
+  s_735279e1ad9368::t_7b2cf75dbb330d 716-717,719-731,733-740,742-752
+  s_735279e1ad9368::t_ef7df04c8ff757 381-382,384-393
+web/app.js
+  s_735279e1ad9368::t_b0ba104751b27d 217
+  s_735279e1ad9368::t_790abd322a0ad7 247-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "3dd84b58de0d2be7efedc7f43eea55c60c78e08e",
+  "prompts": {},
+  "sessions": {
+    "s_735279e1ad9368": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eadc39c8bffe7IqOCp0NwLiAVq",
+        "model": "claude-kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
