@@ -32,6 +32,12 @@ go build -o asv .
 ./asv -memory    # 可选：索引只放内存，不创建/读写缓存数据库
 ```
 
+也可以直接装最新发布的二进制（macOS arm64 / Linux amd64 / Windows amd64）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AkisAya/agent-session-viewer/main/scripts/install.sh | bash
+```
+
 打开 http://localhost:8787
 
 ## 数据来源
