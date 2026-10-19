@@ -44,6 +44,23 @@ scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段
 scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并用无头 Chrome 截图到 docs/screenshots
 ```
 
+## HTTP API
+
+`internal/api` 暴露的接口，内嵌前端与外部工具均使用：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/stats?agent=&cwd=&day=` | 会话数 / 消息数 / Token / 花费汇总；`agents` 为按目录统计的各 agent 分布（供标签页），`total` 随 agent + 目录 + 日期筛选 |
+| GET | `/api/projects?agent=` | 按工作目录聚合的会话数 / 消息数 / Token / 花费 / 各 agent 分布，按会话数降序 |
+| GET | `/api/sessions?agent=&cwd=&q=&day=&sort=&limit=` | 会话概览列表；`day` 只返回该本地日期有活动的会话 |
+| GET | `/api/sessions/{agent}/{id}` | 单个会话的完整对话 |
+| GET | `/api/activity?agent=&cwd=` | 按本地日期聚合的消息数与会话数（仅 API；看板热力图改用 `/api/trend`） |
+| GET | `/api/trend?agent=&cwd=&days=` | 按本地日期的消息 / 会话 / Token / 花费趋势；Token 与花费按会话每日活跃度分摊 |
+| GET | `/api/models?agent=&cwd=` | 按模型聚合的会话数 / 消息数 / Token / 花费 |
+| GET | `/api/tools?agent=&cwd=&limit=` | 工具调用排行及未截断的总调用次数 |
+| GET | `/api/relations?agent=&cwd=` | 处于父子关系中的会话（含父与子），供详情页显示并跳转到主会话 / subagent / 分叉 / 续接的关联会话 |
+| POST | `/api/rescan` | 触发增量扫描 |
+
 ## 扩展新数据源
 
 1. 在 `internal/source/<agent>` 实现数据源接口，产出 `Delta`（整文件解析或增量解析）。

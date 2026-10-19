@@ -24,21 +24,32 @@
 
 ## 快速开始
 
-需要 Go 1.26 或更高版本。
+### 安装
 
-```bash
-go build -o asv .
-./asv            # 默认：索引持久化到 SQLite 缓存
-./asv -memory    # 可选：索引只放内存，不创建/读写缓存数据库
-```
-
-也可以直接装最新发布的二进制（macOS arm64 / Linux amd64 / Windows amd64）：
+**脚本安装**（推荐；macOS arm64 / Linux amd64 / Windows amd64，Windows 在 Git Bash 中运行）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AkisAya/agent-session-viewer/main/scripts/install.sh | bash
 ```
 
-打开 http://localhost:8787
+自动识别平台，下载最新 release 并安装 `asv` 到 `/usr/local/bin`（不可写时装到 `~/.local/bin` 并提示加入 `PATH`）。`VERSION=v0.5.0` 指定版本，`ASV_INSTALL_DIR=/path` 改安装目录。也可从 [Releases](https://github.com/AkisAya/agent-session-viewer/releases) 手动下载。
+
+**源码构建**（需要 Go 1.26+）：
+
+```bash
+git clone https://github.com/AkisAya/agent-session-viewer.git
+cd agent-session-viewer
+go build -o asv .
+```
+
+### 运行
+
+```bash
+asv            # 默认：索引持久化到 SQLite 缓存，二次启动增量扫描
+asv -memory    # 可选：索引只放内存，不创建/读写缓存数据库
+```
+
+打开 http://localhost:8787。首次启动全量扫描建立索引，之后只扫描新增内容，二次启动几乎瞬时。
 
 ## 数据来源
 
@@ -69,21 +80,6 @@ curl -fsSL https://raw.githubusercontent.com/AkisAya/agent-session-viewer/main/s
 -version               打印版本号后退出
 ```
 
-## API
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/stats?agent=&cwd=&day=` | 会话数 / 消息数 / Token / 花费汇总；`agents` 为按目录统计的各 agent 分布（供标签页），`total` 随 agent + 目录 + 日期筛选 |
-| GET | `/api/projects?agent=` | 按工作目录聚合的会话数 / 消息数 / Token / 花费 / 各 agent 分布，按会话数降序 |
-| GET | `/api/sessions?agent=&cwd=&q=&day=&sort=&limit=` | 会话概览列表；`day` 只返回该本地日期有活动的会话 |
-| GET | `/api/sessions/{agent}/{id}` | 单个会话的完整对话 |
-| GET | `/api/activity?agent=&cwd=` | 按本地日期聚合的消息数与会话数（仅 API；看板热力图改用 `/api/trend`） |
-| GET | `/api/trend?agent=&cwd=&days=` | 按本地日期的消息 / 会话 / Token / 花费趋势；Token 与花费按会话每日活跃度分摊 |
-| GET | `/api/models?agent=&cwd=` | 按模型聚合的会话数 / 消息数 / Token / 花费 |
-| GET | `/api/tools?agent=&cwd=&limit=` | 工具调用排行及未截断的总调用次数 |
-| GET | `/api/relations?agent=&cwd=` | 处于父子关系中的会话（含父与子），供详情页显示并跳转到主会话 / subagent / 分叉 / 续接的关联会话 |
-| POST | `/api/rescan` | 触发增量扫描 |
-
 ---
 
-变更记录见 [CHANGELOG.md](CHANGELOG.md)，实现与解析细节见 [docs/DESIGN.md](docs/DESIGN.md)。
+变更记录见 [CHANGELOG.md](CHANGELOG.md)，实现与解析细节、HTTP API 见 [docs/DESIGN.md](docs/DESIGN.md)。
