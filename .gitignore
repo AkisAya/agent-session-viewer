@@ -5,3 +5,4 @@
 *.db-shm
 
 docs/tmp
+output.log
