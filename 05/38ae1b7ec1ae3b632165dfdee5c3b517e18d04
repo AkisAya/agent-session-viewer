@@ -1,0 +1,64 @@
+web/stats.js
+  s_735279e1ad9368::t_577689bbc4665d 29,31
+web/state.js
+  s_735279e1ad9368::t_2b7289a8b5460a 19
+internal/index/index.go
+  s_735279e1ad9368::t_b3a65bd5666023 151-153
+internal/source/claude/claude.go
+  s_735279e1ad9368::t_b4b815e4bcc452 133-138
+  s_735279e1ad9368::t_5a172c6c5d4fc2 46
+  s_735279e1ad9368::t_a9e503fc0c929c 190-191
+web/index.html
+  s_735279e1ad9368::t_7a962fcb5171ff 72-73
+  s_735279e1ad9368::t_434639bf899d0b 76
+  s_735279e1ad9368::t_265eab20f1f18c 92-94,112-113,120-126
+web/smoke.mjs
+  s_735279e1ad9368::t_95febeb5ed205b 141-166
+internal/index/incremental_test.go
+  s_735279e1ad9368::t_0a21e7882be6e8 225-227
+internal/source/codex/codex.go
+  s_735279e1ad9368::t_46c1c54e8079a8 313-314,318-319,321
+web/app.js
+  s_735279e1ad9368::t_becbf4836a50b0 94-106
+  s_735279e1ad9368::t_4405cf2d1936e2 85
+web/style.css
+  s_735279e1ad9368::t_57751e1ec1b89c 517-518
+  s_735279e1ad9368::t_9fc524553f384f 482-487,489-490,492-494,496-498,500,504-516,519
+  s_735279e1ad9368::t_0fe1db6de66e1a 488
+  s_735279e1ad9368::t_b7c4e4d5a807da 459-470
+  s_735279e1ad9368::t_6c0f8785074540 495
+  s_735279e1ad9368::t_3a304f63594d80 499
+web/dashboard.js
+  s_735279e1ad9368::t_226598deb14264 109,137-149,151-193,270,408
+  s_735279e1ad9368::t_98958920c05781 110,115-117
+  s_735279e1ad9368::t_3c6e67a0e9bdf2 286-295,297-306,309-311,314-317,319,321-323,327
+  s_735279e1ad9368::t_c80d4f7813b670 215-216,218-219,224-230,232-240,242-252,254-255,258,261
+  s_735279e1ad9368::t_bf8ab200a2a450 231
+  s_735279e1ad9368::t_4ec49f4255c856 296
+  s_735279e1ad9368::t_1ea7ec9f9cee48 410
+  s_735279e1ad9368::t_65089203609dda 339-340
+  s_735279e1ad9368::t_5bc684940c4cb5 129-133
+  s_735279e1ad9368::t_6a6323e651ee90 4
+  s_735279e1ad9368::t_6db2cc5d2ad45b 217
+  s_735279e1ad9368::t_6fb28fb8a760df 348
+  s_735279e1ad9368::t_80a6b777439c14 356-359,361-362,364-366,370
+CHANGELOG.md
+  s_735279e1ad9368::t_db8d23cf38165a 9-27
+  s_735279e1ad9368::t_e92f22ac18a1d2 145-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "0538ae1b7ec1ae3b632165dfdee5c3b517e18d04",
+  "prompts": {},
+  "sessions": {
+    "s_735279e1ad9368": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eadc39c8bffe7IqOCp0NwLiAVq",
+        "model": "claude-kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "bchen5 <bchen5@trip.com>"
+    }
+  }
+}
