@@ -1,0 +1,22 @@
+CHANGELOG.md
+  s_18c6b69149aac6::t_f29c71f495e94a 13
+  s_18c6b69149aac6::t_806ec551b343b0 211-212
+  s_18c6b69149aac6::t_50a9e785849895 9-10
+  s_18c6b69149aac6::t_9daa13328a07ba 11-12,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "df75665e493e706fcbc9ced1380be79b249f9d9c",
+  "prompts": {},
+  "sessions": {
+    "s_18c6b69149aac6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea78841d6ffeZM0zhmXLg31701",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
