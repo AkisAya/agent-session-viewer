@@ -780,6 +780,9 @@ $("close").addEventListener("click", () => closeDetail());
 $("overlay").addEventListener("click", (e) => {
   if (e.target.id === "overlay") closeDetail();
 });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("overlay").hidden) closeDetail();
+});
 
 // Keep Tab inside the dialog while it is open.
 $("modal").addEventListener("keydown", (e) => {

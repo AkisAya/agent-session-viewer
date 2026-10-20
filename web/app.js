@@ -1,5 +1,5 @@
 // app.js — entry point: cross-feature view switching, URL/history, scan and
-// auto-refresh state, keyboard shortcuts and boot.
+// auto-refresh state and boot.
 //
 // The frontend is plain ES modules served straight from the Go binary; there
 // is no build step. Feature modules own their own rendering (list, dashboard,
@@ -12,7 +12,7 @@ import { loadStats, renderScanTime } from "./stats.js";
 import { loadProjects, renderProjects, renderCrumb } from "./projects.js";
 import { loadSessions, renderList, copyResume, exportCSV } from "./list.js";
 import { loadPanels, paintPanels, loadTop, syncDashboardControls } from "./dashboard.js";
-import { loadRelations, openDetail, closeDetail, jumpUser } from "./detail.js";
+import { loadRelations, openDetail, closeDetail } from "./detail.js";
 
 /* ---------- view switching ---------- */
 function applyView() {
@@ -67,7 +67,6 @@ $("tabs").addEventListener("click", async (e) => {
   if (!b) return;
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === b));
   state.agent = b.dataset.agent;
-  state.cursor = -1;
   await loadProjects();
   await Promise.all([loadStats(), loadSessions(), loadPanels()]);
   writeURL(true);
@@ -208,7 +207,6 @@ document.addEventListener("keydown", (e) => {
 /* project filters */
 async function scopeChanged() {
   state.day = "";
-  state.cursor = -1;
   renderProjects();
   renderCrumb();
   applyView();
@@ -241,14 +239,12 @@ $("project-sort").addEventListener("change", (e) => {
 
 $("search").addEventListener("input", debounce((e) => {
   state.q = e.target.value.trim();
-  state.cursor = -1;
   loadSessions();
   writeURL(false);
 }, 250));
 
 $("sort").addEventListener("change", (e) => {
   state.sort = e.target.value;
-  state.cursor = -1;
   loadSessions();
   writeURL(false);
 });
@@ -295,7 +291,6 @@ async function clearFilters() {
   state.cwd = "";
   state.q = "";
   state.day = "";
-  state.cursor = -1;
   syncControls();
   renderCrumb();
   await Promise.all([loadProjects(), loadStats()]);
@@ -540,103 +535,6 @@ $("theme-switch").addEventListener("click", (e) => {
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (state.theme === "auto") applyTheme();
-});
-
-/* ---------- keyboard ---------- */
-const typing = (e) => {
-  const t = e.target;
-  return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
-};
-
-function moveCursor(delta) {
-  const nodes = Array.from($("list").querySelectorAll(".card[data-id], .session-row[data-id]")).filter((n) => n.offsetParent !== null);
-  if (!nodes.length) return;
-  state.cursor = Math.max(0, Math.min(nodes.length - 1, state.cursor + delta));
-  nodes.forEach((n) => n.classList.remove("sel"));
-  const el = nodes[state.cursor];
-  el.classList.add("sel");
-  if (el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
-}
-
-function openCursor() {
-  if (state.cursor < 0) return;
-  const nodes = Array.from($("list").querySelectorAll(".card[data-id], .session-row[data-id]")).filter((n) => n.offsetParent !== null);
-  const el = nodes[state.cursor];
-  if (!el) return;
-  const s = findSession(el.dataset.agent, el.dataset.id);
-  if (s) openDetail(s);
-}
-
-function adjacentSession(dir) {
-  const list = state.sessions.filter((s) => state.showSubagents || s.relation !== "subagent");
-  if (!list.length) return;
-  let i = state.current ? list.findIndex((s) => s.agent === state.current.agent && s.id === state.current.id) : -1;
-  if (i < 0) i = dir > 0 ? -1 : list.length;
-  const next = list[(i + dir + list.length) % list.length];
-  if (next) openDetail(next);
-}
-
-function showHelp() {
-  $("help").hidden = false;
-  const c = $("help-close");
-  if (c && c.focus) c.focus();
-}
-function hideHelp() {
-  $("help").hidden = true;
-}
-
-$("help-close").addEventListener("click", hideHelp);
-$("help").addEventListener("click", (e) => {
-  if (e.target.id === "help") hideHelp();
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (!$("help").hidden) {
-      hideHelp();
-      return;
-    }
-    if (!$("overlay").hidden) {
-      closeDetail();
-      return;
-    }
-    if (document.activeElement === $("search") && $("search").value) {
-      $("search").value = "";
-      state.q = "";
-      loadSessions();
-      writeURL(false);
-    }
-    return;
-  }
-  if (typing(e)) return;
-  if (!$("help").hidden) return;
-  if (!$("overlay").hidden) {
-    if (e.key === "n") jumpUser(1);
-    if (e.key === "p") jumpUser(-1);
-    if (e.key === "f") $("detail-find-toggle").click();
-    if (e.key === "[") adjacentSession(-1);
-    if (e.key === "]") adjacentSession(1);
-    return;
-  }
-  if (e.key === "?") {
-    e.preventDefault();
-    showHelp();
-    return;
-  }
-  if (state.view !== "list") return;
-  if (e.key === "j") {
-    e.preventDefault();
-    moveCursor(1);
-  } else if (e.key === "k") {
-    e.preventDefault();
-    moveCursor(-1);
-  } else if (e.key === "Enter") {
-    openCursor();
-  } else if (e.key === "[") {
-    adjacentSession(-1);
-  } else if (e.key === "]") {
-    adjacentSession(1);
-  }
 });
 
 /* ---------- url / history ---------- */

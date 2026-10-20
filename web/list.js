@@ -52,7 +52,6 @@ export async function loadSessions(reset = true, opts = {}) {
     state.sessions = [];
     state.total = 0;
     state.allLoaded = false;
-    state.cursor = -1;
   }
   if (sessionsAbort) sessionsAbort.abort();
   sessionsAbort = new AbortController();

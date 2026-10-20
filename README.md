@@ -1,20 +1,47 @@
+<div align="center">
+
+<img src="web/logo.svg" width="104" alt="Agent Session Viewer">
+
 # Agent Session Viewer
 
-一个轻量的本地工具，用于浏览本机上 **Claude Code**、**Codex**、**OpenCode** 和 **DeepSeek Harness（DSH）** 的历史对话记录。
+### 所有 agent 的对话，一处回看。
 
-- 单个 Go 二进制，内嵌前端页面
-- 增量索引：只扫描新增内容，二次启动几乎瞬时
-- 空闲低占用；顶栏「自动刷新」或 `-watch-interval` 可让索引/页面保持更新（通常二选一）
-- 列表支持分页、卡片/表格两种密度、收藏与本地标签
-- 对话详情支持查找、跳转用户消息、宽屏/字号、Markdown/JSON 下载与深链
-- 看板包含 KPI、活动热力图、趋势、Top 会话、工作节奏（近 7 天 / 今天按小时）与可排序对比表
-- Codex / DSH 等没有记录花费的来源可按参考单价显示「≈」估算
+**Claude Code · Codex · OpenCode · DeepSeek Harness**<br>
+一个 Go 二进制，内嵌前端，索引增量更新。<br>
+会话历史、对话全文与用量统计随手可查，数据始终留在本机。
+
+[![Release](https://img.shields.io/github/v/release/AkisAya/agent-session-viewer?label=release&color=111111)](https://github.com/AkisAya/agent-session-viewer/releases/latest)
+[![Stars](https://img.shields.io/github/stars/AkisAya/agent-session-viewer?style=flat&color=111111)](https://github.com/AkisAya/agent-session-viewer/stargazers)
+[![CI](https://img.shields.io/github/actions/workflow/status/AkisAya/agent-session-viewer/ci.yml?label=CI&color=111111)](https://github.com/AkisAya/agent-session-viewer/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/github/go-mod/go-version/AkisAya/agent-session-viewer?color=111111)](go.mod)<br>
+![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
+![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
+
+<br>
+
+<a href="docs/screenshots/list.webp"><img src="docs/screenshots/list.webp" width="920" alt="会话列表：分页、卡片/表格视图，按 agent 与项目筛选"></a>
+
+<sub>截图使用合成的演示数据，可用 <code>node scripts/screenshots.mjs</code> 重新生成。</sub>
+
+</div>
+
+<br>
+
+## 它解决什么
+
+每个 agent 都把历史存在自己的目录、自己的格式里：Claude Code 按项目分目录写 JSONL，Codex 按日期滚存，OpenCode 存进 SQLite，DSH 是 zstd 帧拼成的追加日志。想回头找一句回复、算一下这个月花了多少，只能在四个地方各翻一遍。
+
+本工具把这些记录索引到一个统一的只读视图里：
+
+- **一处浏览**：会话列表按 agent / 项目筛选，分页、卡片 / 表格两种密度、收藏与本地标签。
+- **看得下去**：对话详情支持 Markdown 渲染、查找、跳转用户消息、消息大纲、宽屏 / 字号；子代理、分叉与续接关系可互相跳转。
+- **算得清楚**：KPI、活动热力图、趋势、Top 会话、工作节奏、模型 / 工具排行与可排序对比表；Codex / DSH 等没有记录花费的来源按参考单价显示「≈」估算。
+- **轻**：单个 Go 二进制，前端内嵌；增量索引只扫新增内容，二次启动几乎瞬时，空闲低占用。顶栏「自动刷新」或 `-watch-interval` 可让索引 / 页面保持更新（通常二选一）。
+
+所有源文件都以只读方式打开，不影响正在运行的 agent；HTTP 默认只绑定 `127.0.0.1`。它是一个本地工具，不是云端服务——没有账号，没有同步。
 
 ## 截图
-
-**会话列表**：分页与卡片/表格视图，按 agent / 项目筛选，卡片显示模型、消息数、Token、花费（≈ 为估算）、compact 次数、收藏与标签
-
-<img src="docs/screenshots/list.webp" width="100%" alt="会话列表">
 
 **统计看板**：概览卡片、活动热力图与趋势、工作节奏（近 7 天 / 今天按小时，可切换消息 / 会话 / Token / 花费）、Top 会话、模型 / 工具排行、Agent 对比与项目排行
 
@@ -23,8 +50,6 @@
 **对话详情**：Markdown 渲染、查找与用户消息跳转、右侧消息大纲、上下文压缩标记、深链与 Markdown / JSON 导出
 
 <img src="docs/screenshots/detail.webp" width="100%" alt="对话详情">
-
-<sub>截图使用合成的演示数据，可用 <code>node scripts/screenshots.mjs</code> 重新生成。</sub>
 
 ## 快速开始
 
@@ -92,18 +117,12 @@ asv -rebuild   # 删除缓存并全量重建（索引口径变更或缓存损坏
 
 顶栏「自动刷新」是浏览器侧定时任务（默认关闭）：每 30 秒让后端增量扫描日志、更新索引，再重新加载统计/列表/看板；不是整页 reload，也不会检查软件版本。`-watch-interval` 是服务端定时扫描，页面会通过 `/api/scan` 自动跟随。**两者通常二选一**：页面常开时用顶栏即可；需要在浏览器关闭后仍保持索引新鲜（或多标签、外部 API 场景）时用 `-watch-interval`。同时开启不会重复写索引（有并发保护），但客户端定时请求是多余的。
 
-## 键盘快捷键
+## 文档
 
-| 键 | 作用 |
-|---|---|
-| `j` / `k` | 在会话列表中上下移动 |
-| `Enter` | 打开选中的会话 |
-| `[` / `]` | 上一个 / 下一个会话 |
-| `n` / `p` | 详情中下一条 / 上一条用户消息 |
-| `f` | 详情中打开查找 |
-| `?` | 显示快捷键帮助 |
-| `Esc` | 关闭弹窗 / 帮助 |
+| | |
+| :-- | :-- |
+| [本 README](README.md) | 安装、运行、数据来源与命令行参数 |
+| [docs/DESIGN.md](docs/DESIGN.md) | 解析细节、索引设计、项目结构与 HTTP API |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 
----
-
-变更记录见 [CHANGELOG.md](CHANGELOG.md)，实现与解析细节、HTTP API 见 [docs/DESIGN.md](docs/DESIGN.md)。
+遇到问题或想提建议，欢迎开 [issue](https://github.com/AkisAya/agent-session-viewer/issues)。如果这个工具帮你省下了一次翻目录的时间，点个 ⭐ 能让更多人找到它。

@@ -62,7 +62,6 @@ export const state = {
   // scroll position (a jump that cannot reach the top of the viewport).
   railLock: false,
   lastFocus: null,
-  cursor: -1,
 };
 
 /* ---------- preferences ---------- */

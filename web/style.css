@@ -930,7 +930,6 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
 .card-star:hover { color: var(--mark-fg); }
 .card-star.on { color: #e0a51a; }
 .card.starred { border-left-color: #e0a51a; }
-.card.sel, .session-row.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* compact table view */
 .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
@@ -1072,17 +1071,6 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
 .md-task.done::after { content: "✓"; color: var(--panel); font-size: 10px; line-height: 12px; display: block; text-align: center; }
 .md li.task { list-style: none; margin-left: -18px; }
 
-/* help panel */
-.help-panel {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-  width: min(460px, 100%); padding: 16px 18px; align-self: center;
-}
-.help-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.help-head h3 { margin: 0; font-size: 15px; }
-.help-list { display: grid; grid-template-columns: 80px 1fr; gap: 8px 14px; margin: 0; font-size: 13px; }
-.help-list dt { color: var(--accent); font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.help-list dd { margin: 0; color: var(--muted); }
-
 .modal-open { overflow: hidden; }
 
 @media (max-width: 720px) {
@@ -1098,7 +1086,6 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
   .session-table .st-cwd, .session-table .st-model { max-width: 100px; }
   .rhythm { flex-direction: column; gap: 14px; }
   .rhythm-col + .rhythm-col { border-left: none; padding-left: 0; }
-  .help-panel { align-self: flex-end; border-radius: 14px 14px 0 0; }
 }
 
 /* session tags */
