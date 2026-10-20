@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
 ### Added
 
 - **列表分页与两种密度**：`/api/sessions` 改为返回 `{sessions,total,limit,offset}`，列表按页追加并显示「加载更多（剩余 N）」；新增卡片 / 表格视图切换，表格把 agent、标题、项目、模型、消息、Token、花费、更新时间压缩到一张表里。排序新增「按花费」。
@@ -200,7 +202,8 @@
 - 「刷新」按钮触发一次增量扫描。
 - macOS（arm64）发布工作流，推送 `v*` tag 时自动构建并上传产物。
 
-[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/AkisAya/agent-session-viewer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AkisAya/agent-session-viewer/compare/v0.2.0...v0.3.0
