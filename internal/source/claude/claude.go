@@ -66,8 +66,9 @@ type block struct {
 	Name     string `json:"name"`
 }
 
-// Scan walks the projects directory. Session files live exactly two levels
-// deep: <root>/<encoded-cwd>/<sessionId>.jsonl
+// Scan walks the projects directory. Session files live two levels deep:
+// <root>/<encoded-cwd>/<sessionId>.jsonl, with subagent transcripts one level
+// further: <root>/<encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl
 func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (map[string]source.Cursor, error) {
 	next := map[string]source.Cursor{}
 	projects, err := os.ReadDir(s.Root)
@@ -84,14 +85,35 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 			continue
 		}
 		for _, f := range files {
-			if f.IsDir() || !strings.HasSuffix(f.Name(), ".jsonl") {
+			path := filepath.Join(dir, f.Name())
+			if f.IsDir() {
+				// Subagent transcripts live next to their parent session:
+				// <encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl
+				s.scanDir(filepath.Join(path, "subagents"), prev, emit, next)
 				continue
 			}
-			path := filepath.Join(dir, f.Name())
+			if !strings.HasSuffix(f.Name(), ".jsonl") {
+				continue
+			}
 			s.scanFile(path, prev[path], emit, next)
 		}
 	}
 	return next, nil
+}
+
+// scanDir scans every JSONL file directly inside dir, skipping a missing dir.
+func (s *Source) scanDir(dir string, prev map[string]source.Cursor, emit func(source.Delta), next map[string]source.Cursor) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".jsonl") {
+			continue
+		}
+		path := filepath.Join(dir, f.Name())
+		s.scanFile(path, prev[path], emit, next)
+	}
 }
 
 func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta), next map[string]source.Cursor) {
@@ -121,6 +143,9 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		Cursor: source.Cursor{Size: size, Mtime: mtime, Offset: newOffset},
 	}
 	full := offset == 0
+	// Subagent transcripts carry the parent session id in sessionId, so the
+	// file name (agent-<agentId>) is their identity instead.
+	subagent := filepath.Base(filepath.Dir(path)) == "subagents"
 
 	var (
 		customTitle, aiTitle, lastPrompt, summary string
@@ -147,8 +172,11 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		if json.Unmarshal(raw, &e) != nil {
 			continue
 		}
-		if e.SessionID != "" {
+		if !subagent && e.SessionID != "" {
 			d.ID = e.SessionID
+		}
+		if subagent && d.ParentID == "" && e.SessionID != "" {
+			d.ParentID = e.SessionID
 		}
 		if t := parseTime(e.Timestamp); !t.IsZero() {
 			ts = t
@@ -220,7 +248,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 				}
 			}
 			d.Msgs.Value++
-			if e.Type == "user" && !e.IsSidechain {
+			if e.Type == "user" && (subagent || !e.IsSidechain) {
 				if txt := plainText(e.Message); txt != "" && firstUser == "" {
 					firstUser = txt
 				}
@@ -232,6 +260,15 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	}
 
 	d.Title = source.FirstText(customTitle, aiTitle, lastPrompt, summary)
+	if subagent {
+		d.Relation = "subagent"
+		if d.ParentID == "" { // no sessionId line: the parent is the dir name
+			d.ParentID = filepath.Base(filepath.Dir(filepath.Dir(path)))
+		}
+		// The transcript's first user turn is the agent's prompt; the sibling
+		// meta file holds the short description Claude Code shows for it.
+		d.Title = source.FirstText(subagentDescription(path), d.Title)
+	}
 	if d.Title == "" && full {
 		d.Title = source.Truncate(firstUser, 80)
 	}
@@ -268,6 +305,20 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		emit(d)
 		next[path] = d.Cursor
 	}
+}
+
+// subagentDescription reads the short description Claude Code writes next to
+// a subagent transcript in agent-<id>.meta.json.
+func subagentDescription(path string) string {
+	var meta struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	raw, err := os.ReadFile(strings.TrimSuffix(path, ".jsonl") + ".meta.json")
+	if err != nil || json.Unmarshal(raw, &meta) != nil {
+		return ""
+	}
+	return source.FirstText(meta.Description, meta.Name)
 }
 
 // plainText extracts human-readable text from a Claude message payload.
@@ -314,12 +365,15 @@ func (s *Source) Transcript(id string, hints []string) ([]model.Message, error) 
 		return nil, err
 	}
 	var out []model.Message
+	// Every line of a subagent transcript is flagged isSidechain; it is the
+	// visible conversation there, so only filter sidechains in main files.
+	subagent := filepath.Base(filepath.Dir(path)) == "subagents"
 	err = source.ForEachLine(path, func(raw []byte) error {
 		var e entry
 		if json.Unmarshal(raw, &e) != nil {
 			return nil
 		}
-		if (e.Type != "user" && e.Type != "assistant") || e.IsSidechain {
+		if (e.Type != "user" && e.Type != "assistant") || (e.IsSidechain && !subagent) {
 			return nil
 		}
 		var m message
@@ -404,6 +458,11 @@ func (s *Source) find(id string) (string, error) {
 		path := filepath.Join(s.Root, p.Name(), id+".jsonl")
 		if _, err := os.Stat(path); err == nil {
 			matches = append(matches, path)
+		}
+		// Subagent files (agent-<id>.jsonl) live under <sessionId>/subagents/.
+		if strings.HasPrefix(id, "agent-") {
+			found, _ := filepath.Glob(filepath.Join(s.Root, p.Name(), "*", "subagents", id+".jsonl"))
+			matches = append(matches, found...)
 		}
 	}
 	if len(matches) == 0 {

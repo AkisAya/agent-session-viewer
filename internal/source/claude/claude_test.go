@@ -145,3 +145,58 @@ func TestTranscriptUsesHint(t *testing.T) {
 		t.Fatalf("transcript = %+v, want the hinted file", msgs)
 	}
 }
+
+// Newer Claude Code keeps each subagent transcript beside its parent session:
+// <encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl. Every line carries the
+// parent's sessionId and isSidechain, so the scan must key the session by the
+// file's agent id, link it to the parent, and read its own description.
+func TestScanSubagentDir(t *testing.T) {
+	root := t.TempDir()
+	writeSession(t, root, "parent",
+		`{"type":"user","timestamp":"2026-01-01T12:00:00Z","sessionId":"parent","cwd":"/tmp/p","message":{"role":"user","content":"parent prompt"}}`)
+
+	dir := filepath.Join(root, "encoded-cwd", "parent", "subagents")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "agent-a1b2.jsonl")
+	lines := `{"type":"user","timestamp":"2026-01-01T12:00:01Z","sessionId":"parent","isSidechain":true,"agentId":"a1b2","cwd":"/tmp/p","message":{"role":"user","content":"explore the repo"}}
+{"type":"assistant","timestamp":"2026-01-01T12:00:02Z","sessionId":"parent","isSidechain":true,"agentId":"a1b2","cwd":"/tmp/p","message":{"role":"assistant","content":[{"type":"text","text":"found it"}]}}
+`
+	if err := os.WriteFile(path, []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent-a1b2.meta.json"),
+		[]byte(`{"agentType":"Explore","description":"探索仓库结构"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := map[string]source.Delta{}
+	if _, err := (&Source{Root: root}).Scan(nil, func(d source.Delta) { got[d.ID] = d }); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	d, ok := got["agent-a1b2"]
+	if !ok {
+		t.Fatalf("no delta for the subagent, got %v", got)
+	}
+	if d.ParentID != "parent" || d.Relation != "subagent" {
+		t.Fatalf("relation = %q/%q, want parent/subagent", d.ParentID, d.Relation)
+	}
+	if d.Title != "探索仓库结构" || d.Preview != "explore the repo" {
+		t.Fatalf("title/preview = %q/%q", d.Title, d.Preview)
+	}
+	if d.Msgs.Value != 2 {
+		t.Fatalf("msgs = %d, want 2", d.Msgs.Value)
+	}
+	if p := got["parent"]; p.ParentID != "" {
+		t.Fatalf("parent session linked to %q", p.ParentID)
+	}
+
+	msgs, err := (&Source{Root: root}).Transcript("agent-a1b2", []string{path})
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if len(msgs) != 2 || msgs[1].Text != "found it" {
+		t.Fatalf("transcript = %+v, want both sidechain turns", msgs)
+	}
+}

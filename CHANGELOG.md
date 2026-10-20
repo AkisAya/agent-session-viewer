@@ -37,6 +37,7 @@
 
 ### Fixed
 
+- **Claude Code 子代理未被识别**：新版 Claude Code 把子代理转录放在 `<编码路径>/<sessionId>/subagents/agent-<agentId>.jsonl`，扫描只看目录第一层 `.jsonl`，导致子代理会话完全没有索引、详情也没有父子关系。现在会扫描该子目录，以 agentId 作为会话 ID、`sessionId` 作为父会话记为 `subagent`，标题取同名 `.meta.json` 的 `description`，并且子代理详情不再因为整份转录都带 `isSidechain` 而被过滤成空。
 - 升级后看板出现「卡片空白 / 按钮点击无反应」：静态资源此前以 `Cache-Control: public, max-age=600` 缓存，新页面会配上旧 JS / CSS。现在所有静态资源都要求每次重新验证（`no-cache`）。
 - 详情页快速切换会话时旧响应覆盖新会话；导出/复制在加载期间会串到上一条会话；统计与看板请求增加请求序号，避免旧响应覆盖新筛选。
 - 列表 500 条静默截断；搜索中的 `%` / `_` 现在按字面匹配（`LIKE ... ESCAPE`）。

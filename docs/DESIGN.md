@@ -6,7 +6,7 @@
 
 | Agent | 路径 | 解析要点 |
 |---|---|---|
-| Claude Code | `~/.claude/projects/<编码路径>/<sessionId>.jsonl` | 标题取 `custom-title` / `ai-title` / `last-prompt`，费用取 `cost-state`，思考取 `thinking` 块，工具调用取 `tool_use` 块，活动按行内 `timestamp` 归日 |
+| Claude Code | `~/.claude/projects/<编码路径>/<sessionId>.jsonl` | 标题取 `custom-title` / `ai-title` / `last-prompt`，费用取 `cost-state`，思考取 `thinking` 块，工具调用取 `tool_use` 块，活动按行内 `timestamp` 归日；子代理转录在同目录 `<sessionId>/subagents/agent-<agentId>.jsonl`，其中的 `sessionId` 指向父会话、所有行都是 `isSidechain`，因此以文件名中的 agentId 为会话标识，标题取同名 `.meta.json` 的 `description`，并记为父会话的 `subagent` |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | 标题优先取 `session_index.jsonl`，模型取 `turn_context`，Token 取累计 `token_count`，回退解析 `response_item`；工具调用优先取 `event_msg` 的 `CommandExecution`/`WebSearch`/`McpToolCall`，否则取 `response_item` 的 `function_call`/`custom_tool_call`；`parent_thread_id` 非自身时记为续接 |
 | OpenCode | `~/.local/share/opencode/opencode.db` | 只读打开，读取 `session_v2` 与 `session_message`（兼容旧的 `message`/`part`）；活动按 `time_created` 归日，工具调用取 assistant 消息中的 `tool` 内容块；`parent_id` 记为子代理（`subagent`），`fork_session_id` 记为分叉（`fork`） |
 | DSH | `~/.dsh/sessions/<编码 cwd>/<sessionId>/session.vN.jsonl.zstd` | 读取 DSH 的追加式会话日志；`session.vN.jsonl`（未压缩）同样支持。标题取 `session/title`，模型取 `request/context` / assistant 消息，Token 取每条 `assistant/message` 的 `usage`（输入 / 输出 / 缓存读）；真实用户消息只认 `source.kind = user`，忽略注入的 runtime-context / skill-catalog 等上下文；工具调用取 `tool/call`；`parentSession` + `origin: subagent` 记为子代理 |
