@@ -1,0 +1,20 @@
+CHANGELOG.md
+  s_98a799f89dc9df::t_7d1ea5c646c5e2 9-10
+  s_98a799f89dc9df::t_15d3e73c82c1ab 205-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "0650480af049144b50f9cce33e9b0f9ea873b354",
+  "prompts": {},
+  "sessions": {
+    "s_98a799f89dc9df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea7c50bf8ffewmSSX2qXYpw1MU",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
