@@ -20,6 +20,8 @@ type Config struct {
 	DSHDir       string
 	WatchSeconds int  // 0 = no periodic scanning
 	Memory       bool // keep the index in memory instead of a SQLite file
+	Rebuild      bool // delete the cache database before opening it
+	Open         bool // open the UI in the default browser after listening
 }
 
 // Home returns the user's home directory.

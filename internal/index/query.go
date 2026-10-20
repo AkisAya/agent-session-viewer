@@ -2,6 +2,7 @@ package index
 
 import (
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 	"time"
@@ -11,16 +12,25 @@ import (
 
 // Filter controls session listing.
 type Filter struct {
-	Agent string
-	CWD   string // exact directory match; "__none__" selects sessions without a directory
-	Query string
-	Day   string // only sessions with activity on this local day (YYYY-MM-DD)
-	Sort  string // "updated" (default) | "created" | "messages" | "tokens"
-	Limit int
+	Agent  string
+	CWD    string // exact directory match; "__none__" selects sessions without a directory
+	Query  string
+	Day    string // only sessions with activity on this local day (YYYY-MM-DD)
+	Sort   string // "updated" (default) | "created" | "messages" | "tokens" | "cost"
+	Limit  int
+	Offset int
 }
 
-// Sessions returns cached session summaries.
-func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
+// SessionPage is one page of session summaries plus the unpaged total.
+type SessionPage struct {
+	Sessions []model.Session `json:"sessions"`
+	Total    int             `json:"total"`
+	Limit    int             `json:"limit"`
+	Offset   int             `json:"offset"`
+}
+
+// sessionWhere builds the shared WHERE clause for a session listing.
+func sessionWhere(f Filter) (string, []any) {
 	where := []string{"1=1"}
 	args := []any{}
 	if f.Agent != "" {
@@ -37,8 +47,8 @@ func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
 		args = append(args, f.CWD)
 	}
 	if f.Query != "" {
-		where = append(where, "(title LIKE ? OR cwd LIKE ? OR preview LIKE ?)")
-		like := "%" + f.Query + "%"
+		where = append(where, `(title LIKE ? ESCAPE '\' OR cwd LIKE ? ESCAPE '\' OR preview LIKE ? ESCAPE '\')`)
+		like := likePattern(f.Query)
 		args = append(args, like, like, like)
 	}
 	if f.Day != "" {
@@ -46,23 +56,116 @@ func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
 		where = append(where, "id IN (SELECT a.id FROM activity a WHERE a.day = ? AND a.agent = session.agent)")
 		args = append(args, f.Day)
 	}
-	order := "updated_at DESC"
-	switch f.Sort {
+	return strings.Join(where, " AND "), args
+}
+
+// likePattern escapes LIKE metacharacters so a search for "100%" is literal.
+func likePattern(q string) string {
+	q = strings.ReplaceAll(q, `\`, `\\`)
+	q = strings.ReplaceAll(q, "%", `\%`)
+	q = strings.ReplaceAll(q, "_", `\_`)
+	return "%" + q + "%"
+}
+
+// orderClause maps a sort key to SQL. User input never reaches the SQL text.
+func orderClause(sort string) string {
+	switch sort {
 	case "created":
-		order = "created_at DESC"
+		return "created_at DESC"
 	case "messages":
-		order = "msg_count DESC"
+		return "msg_count DESC"
 	case "tokens":
-		order = "(tokens_in+tokens_out+cache_read) DESC"
+		return "(tokens_in+tokens_out+cache_read) DESC"
+	case "cost":
+		return "cost DESC"
+	case "compacts":
+		return "compacts DESC"
 	}
+	return "updated_at DESC"
+}
+
+// Sessions returns cached session summaries (kept for callers that do not page).
+func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
+	page, err := ix.SessionPage(Filter{Agent: f.Agent, CWD: f.CWD, Query: f.Query, Day: f.Day,
+		Sort: f.Sort, Limit: f.Limit, Offset: f.Offset})
+	return page.Sessions, err
+}
+
+// SessionPage returns one page plus the total matching row count.
+func (ix *Index) SessionPage(f Filter) (SessionPage, error) {
+	where, args := sessionWhere(f)
 	limit := f.Limit
 	if limit <= 0 {
-		limit = 500
+		limit = 100
 	}
-	args = append(args, limit)
+	if limit > 1000 {
+		limit = 1000
+	}
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
 
-	return ix.selectSessions(`SELECT `+sessionCols+` FROM session WHERE `+
-		strings.Join(where, " AND ")+` ORDER BY `+order+` LIMIT ?`, args)
+	page := SessionPage{Limit: limit, Offset: offset}
+	if err := ix.db.QueryRow(`SELECT count(*) FROM session WHERE `+where, args...).Scan(&page.Total); err != nil {
+		return page, err
+	}
+
+	qArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := ix.selectSessions(`SELECT `+sessionCols+` FROM session WHERE `+where+
+		` ORDER BY `+orderClause(f.Sort)+` LIMIT ? OFFSET ?`, qArgs)
+	if err != nil {
+		return page, err
+	}
+	if rows == nil {
+		rows = []model.Session{}
+	}
+	if err := ix.fillToolCounts(rows); err != nil {
+		return page, err
+	}
+	page.Sessions = rows
+	return page, nil
+}
+
+// fillToolCounts adds the per-session tool call total to a page of sessions.
+// It runs in chunks so the OR-pair clause stays small on a 1000-row page.
+func (ix *Index) fillToolCounts(rows []model.Session) error {
+	const chunk = 200
+	for start := 0; start < len(rows); start += chunk {
+		end := start + chunk
+		if end > len(rows) {
+			end = len(rows)
+		}
+		pairs := make([][2]string, 0, end-start)
+		for _, s := range rows[start:end] {
+			pairs = append(pairs, [2]string{s.Agent, s.ID})
+		}
+		cond, args := pairClause("agent", "id", pairs)
+		dbRows, err := ix.db.Query(`SELECT agent, id, COALESCE(sum(cnt),0)
+			FROM tool_use WHERE `+cond+` GROUP BY agent, id`, args...)
+		if err != nil {
+			return err
+		}
+		counts := map[string]int{}
+		for dbRows.Next() {
+			var agent, id string
+			var n int
+			if err := dbRows.Scan(&agent, &id, &n); err != nil {
+				dbRows.Close()
+				return err
+			}
+			counts[agent+"|"+id] = n
+		}
+		if err := dbRows.Err(); err != nil {
+			dbRows.Close()
+			return err
+		}
+		dbRows.Close()
+		for i := start; i < end; i++ {
+			rows[i].ToolCount = counts[rows[i].Agent+"|"+rows[i].ID]
+		}
+	}
+	return nil
 }
 
 // Stats aggregates per-agent and total metrics.
@@ -212,7 +315,8 @@ func (ix *Index) Trend(agent, cwd string, days int) ([]model.TrendPoint, error) 
 		args = append(args, fmt.Sprintf("-%d day", days-1))
 	}
 	rows, err := ix.db.Query(`SELECT a.day, a.msgs,
-			sum(a.msgs) OVER (PARTITION BY a.agent, a.id) AS sess_msgs,
+			(SELECT COALESCE(sum(x.msgs),0) FROM activity x
+			 WHERE x.agent = a.agent AND x.id = a.id) AS sess_msgs,
 			s.cost, s.tokens_in + s.tokens_out + s.cache_read AS sess_tokens, a.id
 		FROM activity a JOIN session s ON s.agent = a.agent AND s.id = a.id
 		WHERE `+where+` ORDER BY a.day`, args...)
@@ -272,7 +376,9 @@ func (ix *Index) Trend(agent, cwd string, days int) ([]model.TrendPoint, error) 
 func (ix *Index) Models(agent, cwd string) ([]model.ModelStat, error) {
 	where, args := scopeWhere(agent, cwd)
 	rows, err := ix.db.Query(`SELECT model, count(*), COALESCE(sum(msg_count),0),
-			COALESCE(sum(tokens_in+tokens_out+cache_read),0), COALESCE(sum(cost),0)
+			COALESCE(sum(tokens_in+tokens_out+cache_read),0),
+			COALESCE(sum(tokens_in),0), COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0),
+			COALESCE(sum(cost),0)
 		FROM session s WHERE `+where+` GROUP BY model
 		ORDER BY count(*) DESC, sum(msg_count) DESC, model`, args...)
 	if err != nil {
@@ -282,7 +388,8 @@ func (ix *Index) Models(agent, cwd string) ([]model.ModelStat, error) {
 	var out []model.ModelStat
 	for rows.Next() {
 		var m model.ModelStat
-		if err := rows.Scan(&m.Model, &m.Sessions, &m.Messages, &m.Tokens, &m.Cost); err != nil {
+		if err := rows.Scan(&m.Model, &m.Sessions, &m.Messages, &m.Tokens,
+			&m.TokensIn, &m.TokensOut, &m.CacheRead, &m.Cost); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -440,6 +547,21 @@ func scopeWhere(agent, cwd string) (string, []any) {
 		args = append(args, cwd)
 	}
 	return strings.Join(where, " AND "), args
+}
+
+// Session returns one cached session summary, or fs.ErrNotExist.
+func (ix *Index) Session(agent, id string) (model.Session, error) {
+	rows, err := ix.selectSessions(`SELECT `+sessionCols+` FROM session WHERE agent = ? AND id = ?`, []any{agent, id})
+	if err != nil {
+		return model.Session{}, err
+	}
+	if len(rows) == 0 {
+		return model.Session{}, fs.ErrNotExist
+	}
+	if err := ix.fillToolCounts(rows); err != nil {
+		return model.Session{}, err
+	}
+	return rows[0], nil
 }
 
 // Transcript loads a full conversation on demand from the owning source.

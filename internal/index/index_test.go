@@ -1,9 +1,12 @@
 package index
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/akisaya/agent-session-viewer/internal/model"
 	"github.com/akisaya/agent-session-viewer/internal/source"
 )
 
@@ -152,5 +155,201 @@ func TestRelationsIsAgentScoped(t *testing.T) {
 	}
 	if len(rels) != 2 {
 		t.Fatalf("relations = %+v, want exactly opencode root and kid", rels)
+	}
+}
+
+// A token/cost trend must apportion a session's lifetime usage across all of
+// its active days, not only the days inside the requested window. Otherwise a
+// session older than the window inflates the recent days.
+func TestTrendApportionsAcrossAllDays(t *testing.T) {
+	ix := openTest(t)
+	today := time.Now().Format("2006-01-02")
+	old := "2000-01-01"
+	if _, err := ix.db.Exec(`INSERT INTO session(agent,id,tokens_in,cost,updated_at) VALUES('claude','s1',1000,10,1)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, day := range []string{old, today} {
+		if _, err := ix.db.Exec(`INSERT INTO activity(agent,id,src,day,msgs) VALUES('claude','s1','f',?,1)`, day); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pts, err := ix.Trend("", "", 30)
+	if err != nil {
+		t.Fatalf("trend: %v", err)
+	}
+	if len(pts) != 1 || pts[0].Day != today {
+		t.Fatalf("trend = %+v, want only today", pts)
+	}
+	if pts[0].Tokens != 500 || pts[0].Cost != 5 {
+		t.Fatalf("today = %+v, want half the lifetime usage (500 tokens / $5)", pts[0])
+	}
+}
+
+func TestSessionPageAndCostSort(t *testing.T) {
+	ix := openTest(t)
+	insertSession(t, ix, "claude", "a", "/tmp/p", "", "")
+	insertSession(t, ix, "claude", "b", "/tmp/p", "", "")
+	insertSession(t, ix, "claude", "c", "/tmp/p", "", "")
+	for id, cost := range map[string]float64{"a": 1, "b": 30, "c": 10} {
+		if _, err := ix.db.Exec(`UPDATE session SET cost = ? WHERE id = ?`, cost, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := ix.SessionPage(Filter{Sort: "cost", Limit: 2, Offset: 1})
+	if err != nil {
+		t.Fatalf("page: %v", err)
+	}
+	if page.Total != 3 || len(page.Sessions) != 2 {
+		t.Fatalf("page = %+v, want total 3 and two rows", page)
+	}
+	if page.Sessions[0].ID != "c" || page.Sessions[1].ID != "a" {
+		t.Fatalf("order = %s,%s, want c,a", page.Sessions[0].ID, page.Sessions[1].ID)
+	}
+}
+
+func TestSessionPageIncludesToolCount(t *testing.T) {
+	ix := openTest(t)
+	insertSession(t, ix, "claude", "s1", "/tmp/p", "", "")
+	_, err := ix.db.Exec(`INSERT INTO tool_use(agent,id,src,tool,cnt) VALUES
+		('claude','s1','f','shell',3),
+		('claude','s1','f','read',2),
+		('claude','s1','g','shell',1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := ix.SessionPage(Filter{})
+	if err != nil {
+		t.Fatalf("page: %v", err)
+	}
+	if len(page.Sessions) != 1 || page.Sessions[0].ToolCount != 6 {
+		t.Fatalf("page = %+v, want one session with 6 tool calls", page.Sessions)
+	}
+}
+
+func TestSearchEscapesLikeWildcards(t *testing.T) {
+	ix := openTest(t)
+	_, err := ix.db.Exec(`INSERT INTO session(agent,id,title,cwd) VALUES
+		('claude','pct','100% done','/p'),
+		('claude','us','a_b','/p'),
+		('claude','plain','nothing','/p')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		q     string
+		want  string
+		empty bool
+	}{
+		{"100%", "pct", false},
+		{"100_", "", true}, // "_" must be literal, so it cannot match "%"
+		{"a_b", "us", false},
+		{"a%b", "", true}, // "%" must be literal
+	}
+	for _, c := range cases {
+		rows, err := ix.Sessions(Filter{Query: c.q})
+		if err != nil {
+			t.Fatalf("query %q: %v", c.q, err)
+		}
+		if c.empty {
+			if len(rows) != 0 {
+				t.Fatalf("query %q returned %d rows, want none", c.q, len(rows))
+			}
+			continue
+		}
+		if len(rows) != 1 || rows[0].ID != c.want {
+			t.Fatalf("query %q = %+v, want %s", c.q, rows, c.want)
+		}
+	}
+}
+
+// fakeSource lets the scan tests exercise error isolation without touching
+// the filesystem.
+type fakeSource struct {
+	name  string
+	err   error
+	delta *source.Delta
+	block chan struct{}
+}
+
+func (f *fakeSource) Name() string { return f.name }
+func (f *fakeSource) Transcript(string, []string) ([]model.Message, error) {
+	return nil, nil
+}
+func (f *fakeSource) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (map[string]source.Cursor, error) {
+	if f.block != nil {
+		<-f.block
+	}
+	if f.delta != nil {
+		emit(*f.delta)
+		return map[string]source.Cursor{"f": {ID: f.delta.ID}}, nil
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return map[string]source.Cursor{}, nil
+}
+
+func TestScanContinuesAfterSourceError(t *testing.T) {
+	bad := &fakeSource{name: "bad", err: errors.New("boom")}
+	good := &fakeSource{name: "good", delta: &source.Delta{
+		Key: "f", ID: "s1", Msgs: source.Counter{Replace: true, Value: 1},
+	}}
+	ix, err := Open(Options{Memory: true}, bad, good)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer ix.Close()
+
+	if err := ix.Scan(); err == nil {
+		t.Fatal("scan error = nil, want the failing source to be reported")
+	}
+	st := ix.Status()
+	if st.LastError == "" || st.Scanning {
+		t.Fatalf("status = %+v, want a recorded error and no scan in flight", st)
+	}
+	if !st.LastScan.IsZero() {
+		t.Fatalf("lastScan = %v, want zero after a failed scan", st.LastScan)
+	}
+	stats, err := ix.Stats("", "", "")
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if stats.Total.Sessions != 1 {
+		t.Fatalf("sessions = %d, want the good source's session to survive", stats.Total.Sessions)
+	}
+}
+
+func TestStartScanStatusIsImmediate(t *testing.T) {
+	block := make(chan struct{})
+	ix, err := Open(Options{Memory: true}, &fakeSource{name: "slow", block: block})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer ix.Close()
+
+	done := ix.StartScan()
+	if !ix.Status().Scanning {
+		t.Fatal("scanning = false immediately after StartScan, want true")
+	}
+	close(block)
+	if err := <-done; err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if st := ix.Status(); st.Scanning || st.LastScan.IsZero() {
+		t.Fatalf("status = %+v, want a completed successful scan", st)
+	}
+}
+
+func TestScanRecordsLastScanOnSuccess(t *testing.T) {
+	ix, err := Open(Options{Memory: true}, &fakeSource{name: "ok"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer ix.Close()
+	if err := ix.Scan(); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if st := ix.Status(); st.LastScan.IsZero() || st.LastError != "" {
+		t.Fatalf("status = %+v, want a successful last scan", st)
 	}
 }

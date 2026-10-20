@@ -18,7 +18,8 @@ type Session struct {
 	TokensOut int64     `json:"tokensOut"`
 	CacheRead int64     `json:"cacheRead"`
 	Cost      float64   `json:"cost"`
-	Compacts  int       `json:"compacts,omitempty"` // context compactions
+	Compacts  int       `json:"compacts,omitempty"`  // context compactions
+	ToolCount int       `json:"toolCount,omitempty"` // normalized tool calls
 
 	// ParentID is the session this one belongs to; Relation labels the link
 	// ("subagent" | "fork" | "resume"). Empty ParentID means a root session.
@@ -101,9 +102,12 @@ type TrendPoint struct {
 
 // ModelStat aggregates usage per model name.
 type ModelStat struct {
-	Model    string  `json:"model"`
-	Sessions int     `json:"sessions"`
-	Messages int     `json:"messages"`
-	Tokens   int64   `json:"tokens"`
-	Cost     float64 `json:"cost"`
+	Model     string  `json:"model"`
+	Sessions  int     `json:"sessions"`
+	Messages  int     `json:"messages"`
+	Tokens    int64   `json:"tokens"`
+	TokensIn  int64   `json:"tokensIn"`
+	TokensOut int64   `json:"tokensOut"`
+	CacheRead int64   `json:"cacheRead"`
+	Cost      float64 `json:"cost"`
 }

@@ -27,9 +27,13 @@
         <circle cx="16.4" cy="12" r="1.25" fill="#6b8cff" />
       </svg>
       <span>Agent Session Viewer</span>
+      <span class="ver" id="version"></span>
     </div>
     <div class="stats" id="stats"></div>
     <span class="scan-time" id="scan-time" title="上次扫描完成时间"></span>
+    <button id="auto-refresh" class="btn auto-btn" title="开启后每 30 秒重新扫描并刷新页面；已用 -watch-interval 时通常不需要再开" aria-pressed="false">
+      <span class="auto-dot" aria-hidden="true"></span>自动刷新
+    </button>
     <div class="theme-switch" id="theme-switch">
       <button data-pref="auto" title="跟随系统">系统</button>
       <button data-pref="light" title="浅色模式">浅色</button>
@@ -50,19 +54,35 @@
       <button data-view="list" class="active" title="会话列表">会话</button>
       <button data-view="dash" title="使用热力图与统计看板">看板</button>
     </div>
+    <div class="seg view-mode" id="view-mode" title="列表展示方式">
+      <button data-mode="cards" class="active">卡片</button>
+      <button data-mode="table">表格</button>
+    </div>
+    <label class="switch compact" id="sub-toggle" title="把 subagent 会话也显示在列表中">
+      <input type="checkbox" id="show-subagents" />
+      <span>subagent</span>
+    </label>
     <select id="project-select" class="project-select" title="按项目目录筛选"></select>
-    <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…" />
+    <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…（/ 聚焦）" />
     <select id="sort" class="sort">
       <option value="updated">按更新时间</option>
       <option value="created">按创建时间</option>
       <option value="messages">按消息数</option>
       <option value="tokens">按 Token 数</option>
+      <option value="cost">按花费</option>
     </select>
+    <button id="export-csv" class="btn" title="导出当前筛选的会话为 CSV">CSV</button>
   </div>
 
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-head">项目目录<span id="proj-count" class="sidebar-count"></span></div>
+      <input id="project-search" class="sidebar-search" type="search" placeholder="筛选项目…" />
+      <select id="project-sort" class="sidebar-search" title="项目排序">
+        <option value="count">按会话数</option>
+        <option value="name">按名称</option>
+        <option value="recent">按最近活跃</option>
+      </select>
       <div id="projects" class="projects"></div>
     </aside>
     <main>
@@ -83,6 +103,7 @@
                 <button data-m="cost">花费</button>
               </div>
               <div class="seg" id="hm-range">
+                <button data-r="30">30天</button>
                 <button data-r="90">90天</button>
                 <button data-r="180" class="active">180天</button>
                 <button data-r="365">1年</button>
@@ -99,6 +120,14 @@
           <div class="panel-head">
             <h3>模型分布</h3>
             <span class="panel-sub" id="models-sub"></span>
+            <div class="panel-tools">
+              <div class="seg" id="models-metric">
+                <button data-m="tokens" class="active">Token</button>
+                <button data-m="sessions">会话</button>
+                <button data-m="cost">花费</button>
+              </div>
+              <button id="models-all" class="btn mini">全部</button>
+            </div>
           </div>
           <div class="panel-body" id="models-body"></div>
         </div>
@@ -106,8 +135,40 @@
           <div class="panel-head">
             <h3>工具排行</h3>
             <span class="panel-sub" id="tools-sub"></span>
+            <div class="panel-tools">
+              <div class="seg" id="tools-metric">
+                <button data-m="count" class="active">次数</button>
+                <button data-m="sessions">会话</button>
+              </div>
+              <button id="tools-all" class="btn mini">全部</button>
+            </div>
           </div>
           <div class="panel-body" id="tools-body"></div>
+        </div>
+
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h3>Top 会话</h3>
+            <span class="panel-sub" id="top-sub"></span>
+            <div class="panel-tools">
+              <div class="seg" id="top-metric">
+                <button data-m="cost" class="active">花费</button>
+                <button data-m="tokens">Token</button>
+                <button data-m="messages">消息</button>
+                <button data-m="compacts">压缩</button>
+                <button data-m="tools">工具</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body" id="top-body"></div>
+        </div>
+
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h3>工作节奏</h3>
+            <span class="panel-sub" id="weekday-sub"></span>
+          </div>
+          <div class="panel-body" id="weekday-body"></div>
         </div>
 
         <div class="panel span-2">
@@ -122,42 +183,110 @@
           <div class="panel-head">
             <h3>项目排行</h3>
             <span class="panel-sub" id="ranking-sub"></span>
+            <div class="panel-tools"><button id="ranking-all" class="btn mini">全部</button></div>
           </div>
           <div class="panel-body" id="ranking-body"></div>
         </div>
       </section>
 
+      <div id="list-info" class="list-info" hidden></div>
       <div id="list" class="list"></div>
+      <button id="load-more" class="btn load-more" hidden>加载更多</button>
       <div id="empty" class="empty" hidden>没有匹配的会话</div>
     </main>
   </div>
 
   <div id="overlay" class="overlay" hidden>
-    <div class="modal">
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
       <div class="modal-head">
         <div class="modal-titles">
           <div id="detail-title" class="detail-title"></div>
           <div id="detail-meta" class="detail-meta"></div>
           <div id="detail-stats" class="detail-stats"></div>
+          <div id="detail-tags" class="detail-tags"></div>
           <div id="detail-id" class="detail-id"></div>
           <div id="detail-rel" class="detail-rel" hidden></div>
         </div>
         <div class="modal-actions">
-          <label class="switch" title="显示模型的思考过程与工具调用">
+          <label class="switch" title="显示模型的思考过程、工具调用与 system 消息">
             <input type="checkbox" id="show-noise" />
             <span>思考 / 工具</span>
           </label>
-          <button id="detail-export" class="btn" title="复制整段对话为 Markdown">导出</button>
-          <button id="close" class="btn">关闭</button>
+          <div class="action-group" role="group" aria-label="阅读工具">
+            <button id="detail-find-toggle" class="act" title="在对话中查找（f）" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4.5 4.5"></path></svg>
+              <span>查找</span>
+            </button>
+            <button id="detail-wide" class="act" title="宽屏显示" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+              <span>宽屏</span>
+            </button>
+            <button id="detail-font" class="act" title="字号：标准（点击切换）">
+              <span class="font-ico" aria-hidden="true">Aa</span>
+              <span>字号</span>
+            </button>
+            <button id="detail-rail-toggle" class="act rail-toggle" title="消息大纲" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16"></path></svg>
+              <span>大纲</span>
+            </button>
+          </div>
+          <div class="action-group" role="group" aria-label="复制与导出">
+            <button id="detail-export" class="act" title="复制整段对话为 Markdown">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>
+              <span class="act-label">复制正文</span>
+            </button>
+            <button id="detail-download-md" class="act" title="下载 Markdown">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m-4-4 4 4 4-4M5 19h14"></path></svg>
+              <span>导出 MD</span>
+            </button>
+            <button id="detail-download-json" class="act" title="下载 JSON">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m-4-4 4 4 4-4M5 19h14"></path></svg>
+              <span>导出 JSON</span>
+            </button>
+          </div>
+          <button id="close" class="btn close-btn" title="关闭（Esc）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+            <span>关闭</span>
+          </button>
         </div>
       </div>
       <div class="modal-body">
-        <div id="detail-body" class="messages"></div>
+        <div class="msg-col">
+          <div id="find-bar" class="find-bar" hidden>
+            <input id="find" type="search" placeholder="在对话中查找…" />
+            <button id="find-prev" type="button" class="btn icon-btn" title="上一个匹配">↑</button>
+            <button id="find-next" type="button" class="btn icon-btn" title="下一个匹配">↓</button>
+            <span id="find-count" class="find-count"></span>
+            <span class="find-sep"></span>
+            <button id="detail-prev-user" type="button" class="btn icon-btn" title="上一条用户消息（p）">↑用户</button>
+            <button id="detail-next-user" type="button" class="btn icon-btn" title="下一条用户消息（n）">↓用户</button>
+          </div>
+          <div id="detail-body" class="messages"></div>
+        </div>
         <aside id="rail" class="rail" hidden>
           <div class="rail-head">消息<span id="rail-count" class="rail-count"></span></div>
           <div id="rail-list" class="rail-list"></div>
         </aside>
       </div>
+    </div>
+  </div>
+
+  <div id="help" class="overlay" hidden>
+    <div class="help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="help-head">
+        <h3 id="help-title">键盘快捷键</h3>
+        <button id="help-close" class="btn">关闭</button>
+      </div>
+      <dl class="help-list">
+        <dt>/</dt><dd>聚焦搜索</dd>
+        <dt>j / k</dt><dd>在会话列表中上下移动</dd>
+        <dt>Enter</dt><dd>打开选中的会话</dd>
+        <dt>[ / ]</dt><dd>上一个 / 下一个会话</dd>
+        <dt>n / p</dt><dd>详情中下一条 / 上一条用户消息</dd>
+        <dt>f</dt><dd>详情中打开查找</dd>
+        <dt>?</dt><dd>显示这份快捷键</dd>
+        <dt>Esc</dt><dd>关闭弹窗 / 帮助</dd>
+      </dl>
     </div>
   </div>
 

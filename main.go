@@ -9,7 +9,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -43,6 +46,8 @@ func main() {
 	flag.StringVar(&cfg.DSHDir, "dsh-dir", "", "DeepSeek Harness sessions directory")
 	flag.IntVar(&cfg.WatchSeconds, "watch-interval", 0, "rescan every N seconds (0 = only on demand)")
 	flag.BoolVar(&cfg.Memory, "memory", false, "keep the index in memory instead of a SQLite file (full rescan on every start)")
+	flag.BoolVar(&cfg.Rebuild, "rebuild", false, "delete the cache database and rebuild it from scratch")
+	flag.BoolVar(&cfg.Open, "open", false, "open the UI in the default browser after the server starts")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
 	if showVersion {
@@ -50,6 +55,15 @@ func main() {
 		return
 	}
 	cfg.Resolve()
+
+	if cfg.Rebuild && !cfg.Memory {
+		for _, p := range []string{cfg.DBPath, cfg.DBPath + "-wal", cfg.DBPath + "-shm"} {
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				log.Fatalf("remove cache %s: %v", p, err)
+			}
+		}
+		log.Printf("cache: removed %s (-rebuild)", cfg.DBPath)
+	}
 
 	sources := []source.Source{
 		&claude.Source{Root: cfg.ClaudeDir},
@@ -69,13 +83,23 @@ func main() {
 	} else {
 		log.Printf("cache: %s", cfg.DBPath)
 	}
+	if cfg.Host != "127.0.0.1" && cfg.Host != "localhost" && cfg.Host != "::1" {
+		log.Printf("warning: HTTP is bound to %s; this exposes all local conversation history to the network", cfg.Host)
+	}
+
+	// Index in the background: StartScan reserves the state first, so the UI
+	// sees "scanning" immediately instead of an empty index.
 	start := time.Now()
-	if err := ix.Scan(); err != nil {
-		log.Printf("initial scan error: %v", err)
-	}
-	if st, err := ix.Stats("", "", ""); err == nil {
-		log.Printf("indexed %d sessions in %s", st.Total.Sessions, time.Since(start).Round(time.Millisecond))
-	}
+	scanDone := ix.StartScan()
+	go func() {
+		if err := <-scanDone; err != nil {
+			log.Printf("initial scan: %v", err)
+			return
+		}
+		if st, err := ix.Stats("", "", ""); err == nil {
+			log.Printf("indexed %d sessions in %s", st.Total.Sessions, time.Since(start).Round(time.Millisecond))
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -95,7 +119,7 @@ func main() {
 		}()
 	}
 
-	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS)}
+	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS, version)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -103,8 +127,42 @@ func main() {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
+	url := browserURL(cfg.Host, cfg.Port)
+	if cfg.Open {
+		go func() {
+			time.Sleep(150 * time.Millisecond)
+			openBrowser(url)
+		}()
+	}
+
 	log.Printf("listening on http://%s", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server: %v", err)
 	}
+}
+
+// browserURL is the address a local browser can use even when the server binds
+// to a wildcard address.
+func browserURL(host string, port int) string {
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Printf("open browser: %v", err)
+		return
+	}
+	_ = cmd.Wait()
 }

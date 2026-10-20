@@ -32,7 +32,7 @@ esac
 
 # The release workflow only builds these, so fail before downloading a 404.
 case "$os-$arch" in
-	darwin-arm64 | linux-amd64 | windows-amd64) ;;
+	darwin-arm64 | darwin-amd64 | linux-amd64 | linux-arm64 | windows-amd64) ;;
 	*)
 		echo "no build for $os-$arch; see https://github.com/$repo/releases" >&2
 		exit 1

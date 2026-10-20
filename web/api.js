@@ -6,11 +6,11 @@
 import { state } from "./state.js";
 
 async function request(path, opts = {}) {
-  const { params, signal, method } = opts;
+  const { params, signal, method, headers, body } = opts;
   const qs = params && params.toString() ? "?" + params : "";
   let res;
   try {
-    res = await fetch(path + qs, { method, signal });
+    res = await fetch(path + qs, { method, signal, headers, body });
   } catch (e) {
     if (e && e.name === "AbortError") throw e;
     throw new Error("无法连接到本地服务，请确认它仍在运行");
@@ -29,6 +29,8 @@ async function errorText(res) {
 }
 
 export const api = {
+  version: () => request("/api/version"),
+  scan: () => request("/api/scan"),
   stats: (params) => request("/api/stats", { params }),
   projects: (params) => request("/api/projects", { params }),
   sessions: (params, signal) => request("/api/sessions", { params, signal }),
@@ -36,8 +38,16 @@ export const api = {
   tools: (params) => request("/api/tools", { params }),
   models: (params) => request("/api/models", { params }),
   relations: () => request("/api/relations"),
-  transcript: (agent, id) => request(`/api/sessions/${encodeURIComponent(agent)}/${encodeURIComponent(id)}`),
-  rescan: () => request("/api/rescan", { method: "POST" }),
+  transcript: (agent, id, signal) =>
+    request(`/api/sessions/${encodeURIComponent(agent)}/${encodeURIComponent(id)}`, { signal }),
+  sessionMeta: (agent, id) =>
+    request(`/api/sessions/${encodeURIComponent(agent)}/${encodeURIComponent(id)}/meta`),
+  rescan: () =>
+    request("/api/rescan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }),
 };
 
 // scopeParams mirrors the current agent tab and directory filter, merged with

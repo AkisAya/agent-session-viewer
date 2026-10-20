@@ -48,12 +48,14 @@
     // Code spans run FIRST so their content is never touched by other rules.
     s = s.replace(/(`+)([^`\n]+?)\1/g, (m, ticks, code) => stash("<code>" + code + "</code>"));
 
-    // Images: ![alt](url); unsafe urls degrade to the alt text.
+    // Images: ![alt](url). They are not loaded automatically: agent output can
+    // point at a remote host, and opening a transcript should not leak the
+    // reader's IP. The detail view turns a placeholder into an <img> on click.
     s = s.replace(/!\[([^\]]*)\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g, (m, alt, target) => {
       const url = safeUrl(target);
       if (!url) return alt.replace(/\n/g, " ");
-      const a = alt.replace(/\u0000I\d+\u0000/g, "").replace(/\n/g, " ");
-      return stash(`<img class="md-img" loading="lazy" src="${esc(url)}" alt="${a}">`);
+      const a = alt.replace(/\u0000I\d+\u0000/g, "").replace(/\n/g, " ") || "图片";
+      return stash(`<span class="md-img-blocked" role="button" tabindex="0" data-src="${esc(url)}" title="图片默认不加载，点击显示">${esc(a)}</span>`);
     });
 
     // Links: [text](url); unsafe urls render the label as plain text.
@@ -135,7 +137,7 @@
         items.push({ text: [m[3]], nested: "" });
         i++;
       } else if (m && m[1].length >= 2 && items.length) {
-        if (depth >= 1) {
+        if (depth >= 5) {
           // Too deep: flatten into the current item as plain text.
           items[items.length - 1].text.push(lines[i].trim());
           i++;
@@ -168,7 +170,16 @@
       } else break;
     }
     const tag = ordered ? "ol" : "ul";
-    const html = items.map((it) => `<li>${inline(it.text.join("\n"))}${it.nested}</li>`).join("");
+    const html = items
+      .map((it) => {
+        const raw = it.text.join("\n");
+        const task = /^\s*\[([ xX])\]\s+([\s\S]*)$/.exec(raw);
+        const box = task
+          ? `<span class="md-task${task[1].toLowerCase() === "x" ? " done" : ""}" aria-hidden="true"></span>`
+          : "";
+        return `<li${task ? ' class="task"' : ""}>${box}${inline(task ? task[2] : raw)}${it.nested}</li>`;
+      })
+      .join("");
     return { html: `<${tag}>${html}</${tag}>`, next: i };
   }
 

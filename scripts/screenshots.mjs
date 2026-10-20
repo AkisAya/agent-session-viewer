@@ -230,10 +230,10 @@ try {
   await shot("list.webp");
 
   // Tall viewport so the whole dashboard renders, then crop to its content.
-  await viewport(1600);
+  await viewport(2200);
   await open("/?view=dash");
   const r = await ev(`Math.ceil(document.getElementById("dash").getBoundingClientRect().bottom + 16)`);
-  await shot("dashboard.webp", Math.min(1600, r.result.value));
+  await shot("dashboard.webp", Math.min(2200, r.result.value));
 
   await viewport(800);
   await open("/");

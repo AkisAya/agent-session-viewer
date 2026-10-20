@@ -1,15 +1,22 @@
-// projects.js — the project directory sidebar and the active-day chip.
+// projects.js — the project directory sidebar, its filter and the active-day
+// chip above the list.
 
 import { $, esc, shortPath, cwdKey, notify } from "./util.js";
 import { state } from "./state.js";
 import { api } from "./api.js";
 
+let projectsSeq = 0;
+
 export async function loadProjects() {
+  const seq = ++projectsSeq;
   const p = new URLSearchParams();
   if (state.agent) p.set("agent", state.agent);
   try {
-    state.projects = (await api.projects(p)) || [];
+    const list = (await api.projects(p)) || [];
+    if (seq !== projectsSeq) return;
+    state.projects = list;
   } catch (e) {
+    if (seq !== projectsSeq) return;
     state.projects = [];
     notify(e.message);
   }
@@ -23,12 +30,20 @@ export async function loadProjects() {
 export function renderProjects() {
   const total = state.projects.reduce((n, x) => n + x.count, 0);
   $("proj-count").textContent = state.projects.length;
+  const q = state.projectFilter.trim().toLowerCase();
+  const list = (q ? state.projects.filter((p) => (p.cwd || "").toLowerCase().includes(q)) : state.projects).slice();
+  const order = state.projectOrder;
+  if (order === "name") list.sort((a, b) => shortPath(a.cwd).localeCompare(shortPath(b.cwd)));
+  else if (order === "recent") {
+    const t = (p) => (p.updatedAt ? new Date(p.updatedAt).getTime() : 0);
+    list.sort((a, b) => t(b) - t(a));
+  } else list.sort((a, b) => (b.count || 0) - (a.count || 0));
   const items = [
     `<div class="proj ${state.cwd === "" ? "active" : ""}" data-cwd="" tabindex="0" role="button">
        <span class="proj-name">全部项目</span><span class="proj-count">${total}</span>
      </div>`,
   ];
-  for (const p of state.projects) {
+  for (const p of list) {
     const active = cwdKey(state.cwd) === cwdKey(p.cwd) ? "active" : "";
     items.push(
       `<div class="proj ${active}" data-cwd="${esc(cwdKey(p.cwd))}" title="${esc(p.cwd || "(未知目录)")}" tabindex="0" role="button">
@@ -36,14 +51,17 @@ export function renderProjects() {
        </div>`
     );
   }
+  if (q && !list.length) items.push(`<div class="proj-empty">没有匹配的项目</div>`);
   $("projects").innerHTML = items.join("");
 
   const sel = $("project-select");
-  sel.innerHTML =
-    `<option value="">全部项目 (${total})</option>` +
-    state.projects
-      .map((p) => `<option value="${esc(cwdKey(p.cwd))}" ${cwdKey(state.cwd) === cwdKey(p.cwd) ? "selected" : ""}>${esc(shortPath(p.cwd))} (${p.count})</option>`)
-      .join("");
+  if (sel) {
+    sel.innerHTML =
+      `<option value="">全部项目 (${total})</option>` +
+      state.projects
+        .map((p) => `<option value="${esc(cwdKey(p.cwd))}" ${cwdKey(state.cwd) === cwdKey(p.cwd) ? "selected" : ""}>${esc(shortPath(p.cwd))} (${p.count})</option>`)
+        .join("");
+  }
 }
 
 // renderCrumb shows the active single-day filter (set from the dashboard

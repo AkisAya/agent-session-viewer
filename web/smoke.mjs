@@ -42,9 +42,14 @@ const el = () => ({
   querySelectorAll: () => [],
   closest: () => null,
   setAttribute() {},
+  removeAttribute() {},
+  insertAdjacentHTML(_pos, html) { this.innerHTML += html; },
+  replaceWith() {},
   scrollTo() {},
+  scrollIntoView() {},
   select() {},
   focus() {},
+  click() {},
 });
 
 const cache = new Map();
@@ -59,19 +64,24 @@ globalThis.document = {
   createElement: () => el(),
   documentElement: el(),
   body: el(),
+  activeElement: null,
 };
 globalThis.window = globalThis;
+if (!globalThis.addEventListener) globalThis.addEventListener = () => {};
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.location = { search: "", pathname: "/" };
-globalThis.history = { replaceState() {} };
+globalThis.history = { replaceState() {}, pushState() {} };
+globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: async () => {} }, configurable: true });
 
 /* ---------- stubbed API ---------- */
 const shapes = {
+  "/api/version": { version: "test" },
+  "/api/scan": { scanning: false, done: 4, total: 4, lastScan: "" },
   "/api/stats": { agents: [], total: { sessions: 0 }, lastScan: "" },
   "/api/projects": [],
-  "/api/sessions": [],
+  "/api/sessions": { sessions: [], total: 0, limit: 60, offset: 0 },
   "/api/trend": [],
   "/api/tools": { tools: [], total: 0 },
   "/api/models": [],
@@ -115,7 +125,7 @@ await mod("app.js");
 await new Promise((r) => setTimeout(r, 300)); // let the boot promise chain settle
 console.log("ok: module graph evaluated and boot path ran");
 
-const { state } = await mod("state.js");
+const { state, setTags, tagsOf } = await mod("state.js");
 const { hl, displayTitle, shortPath } = await mod("util.js");
 const { renderList } = await mod("list.js");
 const detail = await mod("detail.js");
@@ -130,6 +140,15 @@ assert(cache.get("stats").innerHTML.includes("75.0%"), "top bar shows the cache 
 assert(hl("Hello World", "world") === "Hello <mark>World</mark>", "hl highlights case-insensitively");
 assert(displayTitle({ title: "550e8400-e29b-41d4-a716-446655440000", preview: "first line\nsecond" }) === "first line", "displayTitle skips uuid titles");
 assert(shortPath("/a/b/c/d") === "c/d", "shortPath keeps the tail");
+assert(shortPath("C:\\Users\\me\\proj") === "me/proj", "shortPath accepts Windows separators");
+
+/* ---------- markdown edge cases ---------- */
+{
+  const html = globalThis.md.render("- a\n  - b\n    - c\n- [x] done\n![x](https://example.com/x.png)");
+  assert((html.match(/<ul>/g) || []).length === 3, "nested lists render to their real depth");
+  assert(html.includes("md-task done"), "task list items render a checked box");
+  assert(html.includes("md-img-blocked") && !html.includes("<img"), "remote images are blocked by default");
+}
 
 /* ---------- session list ---------- */
 // The subagent count comes from the unscoped relations, so it survives a
@@ -147,6 +166,80 @@ assert(listHTML.includes('data-id="s1"'), "renderList renders the parent card");
 assert(!listHTML.includes('data-id="s2"'), "renderList hides subagent cards");
 assert(listHTML.includes("subagent ×2"), "renderList counts children from the relations, not just the rows");
 assert(listHTML.includes("compact ×2"), "renderList shows the compaction count");
+assert(listHTML.includes("card-cwd-copy"), "renderList offers a copy-directory action");
+
+/* ---------- table view + pagination ---------- */
+state.tags["claude|s1"] = ["demo"];
+state.mode = "table";
+state.total = 120;
+renderList([
+  { agent: "claude", id: "s1", title: "Fix the bug", cwd: "/a/b/c", updatedAt: "2026-01-01T12:00:00Z" },
+]);
+const tableHTML = cache.get("list").innerHTML;
+assert(tableHTML.includes("session-table") && tableHTML.includes('data-id="s1"'), "table mode renders session rows");
+assert(cache.get("list-info").textContent.includes("已显示"), "pagination reports the visible subset");
+state.mode = "cards";
+state.total = 0;
+delete state.tags["claude|s1"];
+
+/* ---------- tags on cards ---------- */
+state.tags["claude|s1"] = ["demo"];
+renderList([{ agent: "claude", id: "s1", title: "Fix the bug", updatedAt: "2026-01-01T12:00:00Z" }]);
+assert(cache.get("list").innerHTML.includes("#demo"), "cards render local tags");
+delete state.tags["claude|s1"];
+
+/* ---------- tag storage + project ordering ---------- */
+setTags("claude", "s1", ["demo", " demo ", "x", ""]);
+assert(tagsOf("claude", "s1").join(",") === "demo,x", "tags are trimmed and deduplicated");
+setTags("claude", "s1", []);
+assert(tagsOf("claude", "s1").length === 0, "empty tags are removed");
+
+{
+  const { renderProjects } = await mod("projects.js");
+  state.projects = [
+    { cwd: "/b", count: 1, agents: {} },
+    { cwd: "/a", count: 2, agents: {} },
+  ];
+  state.cwd = "";
+  state.projectOrder = "name";
+  renderProjects();
+  const html = cache.get("projects").innerHTML;
+  assert(html.indexOf('data-cwd="/a"') < html.indexOf('data-cwd="/b"'), "projects sort by name");
+  state.projectOrder = "count";
+  state.projects = [];
+}
+
+/* ---------- empty / loading states ---------- */
+{
+  state.agent = "";
+  state.cwd = "";
+  state.q = "";
+  state.day = "";
+  state.scan = null;
+  state.sessions = [];
+  state.total = 0;
+  renderList([]);
+  assert(cache.get("empty").innerHTML.includes("正在加载会话"), "empty state while scan status is unknown");
+  state.scan = { scanning: false, lastScan: "2026-01-01T00:00:00Z" };
+  state.agent = "codex";
+  renderList([]);
+  assert(cache.get("empty").innerHTML.includes("data-clear-all") && cache.get("empty").innerHTML.includes("agent"), "filtered empty state offers a clear-filters action");
+  state.agent = "";
+}
+
+/* ---------- dashboard extras ---------- */
+dash.renderTopSessions(cache.get("top-body"), [
+  { agent: "claude", id: "s1", title: "expensive", tokensIn: 10, msgCount: 2, cost: 1 },
+]);
+assert(cache.get("top-body").innerHTML.includes("data-id=\"s1\""), "top sessions render rows");
+state.topMetric = "tools";
+dash.renderTopSessions(cache.get("top-body"), [
+  { agent: "claude", id: "s2", title: "tool heavy", toolCount: 7 },
+]);
+assert(cache.get("top-body").innerHTML.includes("7 次"), "top sessions can rank by tool calls");
+state.topMetric = "cost";
+dash.renderWeekday(cache.get("weekday-body"), [{ day: "2026-01-01", msgs: 5 }]);
+assert(cache.get("weekday-body").innerHTML.includes("wd-col"), "weekday chart renders bars");
 
 /* ---------- dashboard ---------- */
 dash.renderActivity(cache.get("activity-body"), [{ day: "2026-01-02", msgs: 5, sessions: 1, tokens: 10 }], 90, "msgs", true);
@@ -198,6 +291,8 @@ assert(stats.includes("<i>压缩</i>1 次"), "stats line counts compactions");
 assert(stats.includes("<i>输入</i>25") && stats.includes("<i>输出</i>4") && stats.includes("<i>缓存读</i>75"), "stats line splits input / output / cache");
 assert(stats.includes("<i>缓存命中</i>75.0%"), "stats line shows the cache hit rate");
 assert(cache.get("rail-list").innerHTML.includes("rail-item"), "transcript builds the outline rail");
+detail.findInTranscript("hello", 1);
+assert(cache.get("find-count").textContent === "1/1", "find counts matching messages");
 
 console.log("SMOKE OK: renders exercised with sample data");
 process.exit(0);

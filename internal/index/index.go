@@ -5,6 +5,7 @@ package index
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,9 +24,23 @@ type Index struct {
 	sources []source.Source
 	byName  map[string]source.Source
 
-	mu       sync.Mutex
-	scanning bool
-	lastScan time.Time
+	mu            sync.Mutex
+	scanning      bool
+	currentSource string
+	scanDone      int
+	scanTotal     int
+	lastScan      time.Time
+	lastError     string
+}
+
+// ScanStatus reports the progress of the current (or last) scan.
+type ScanStatus struct {
+	Scanning  bool      `json:"scanning"`
+	Source    string    `json:"source,omitempty"`
+	Done      int       `json:"done"`
+	Total     int       `json:"total"`
+	LastScan  time.Time `json:"lastScan"`
+	LastError string    `json:"lastError,omitempty"`
 }
 
 const schema = `
@@ -133,10 +148,16 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Serialize writes; reads are cheap. A single connection also keeps the
-	// shared in-memory database alive for the lifetime of the process.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// WAL lets readers run while a scan writes, so a file-backed index uses a
+	// small pool of connections. The shared in-memory database needs a single
+	// connection: it is the one that keeps the database alive.
+	if opts.Memory {
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	} else {
+		db.SetMaxOpenConns(4)
+		db.SetMaxIdleConns(4)
+	}
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
@@ -176,29 +197,103 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 // Close releases the database handle.
 func (ix *Index) Close() error { return ix.db.Close() }
 
+// HasSource reports whether an agent name is registered.
+func (ix *Index) HasSource(name string) bool {
+	_, ok := ix.byName[name]
+	return ok
+}
+
 // Scan performs an incremental scan of every source. It is safe to call
-// concurrently; overlapping calls are skipped.
+// concurrently; overlapping calls are skipped. A failing source does not stop
+// the remaining sources; the joined error is returned at the end and the
+// successful sources are still committed.
+// Scan performs an incremental scan of every source. It is safe to call
+// concurrently; overlapping calls are skipped. A failing source does not stop
+// the remaining sources; the joined error is returned at the end and the
+// successful sources are still committed.
 func (ix *Index) Scan() error {
-	ix.mu.Lock()
-	if ix.scanning {
-		ix.mu.Unlock()
+	if !ix.beginScan() {
 		return nil
 	}
-	ix.scanning = true
-	ix.mu.Unlock()
-	defer func() {
-		ix.mu.Lock()
-		ix.scanning = false
-		ix.lastScan = time.Now()
-		ix.mu.Unlock()
-	}()
+	return ix.runScan()
+}
 
-	for _, src := range ix.sources {
+// StartScan reserves the scan state synchronously, then runs the scan in the
+// background. The returned channel receives the result once it finishes. This
+// makes /api/scan report scanning=true immediately at startup, before the
+// worker goroutine has had a chance to run.
+func (ix *Index) StartScan() <-chan error {
+	ch := make(chan error, 1)
+	if !ix.beginScan() {
+		ch <- nil
+		close(ch)
+		return ch
+	}
+	go func() {
+		ch <- ix.runScan()
+		close(ch)
+	}()
+	return ch
+}
+
+func (ix *Index) beginScan() bool {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	if ix.scanning {
+		return false
+	}
+	ix.scanning = true
+	ix.currentSource = ""
+	ix.scanDone = 0
+	ix.scanTotal = len(ix.sources)
+	ix.lastError = ""
+	return true
+}
+
+func (ix *Index) runScan() error {
+	var errs []string
+	for i, src := range ix.sources {
+		ix.mu.Lock()
+		ix.currentSource = src.Name()
+		ix.scanDone = i
+		ix.mu.Unlock()
 		if err := ix.scanSource(src); err != nil {
-			return err
+			errs = append(errs, src.Name()+": "+err.Error())
 		}
 	}
+
+	ix.mu.Lock()
+	ix.scanDone = len(ix.sources)
+	ix.currentSource = ""
+	ix.scanning = false
+	if len(errs) == 0 {
+		// A partially failed scan must not claim to be up to date.
+		ix.lastScan = time.Now()
+		ix.lastError = ""
+	} else {
+		ix.lastError = strings.Join(errs, "; ")
+	}
+	msg := ix.lastError
+	ix.mu.Unlock()
+
+	if len(errs) > 0 {
+		return errors.New(msg)
+	}
 	return nil
+}
+
+// Status returns a snapshot of the scan state for the HTTP API.
+func (ix *Index) Status() ScanStatus {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	return ScanStatus{
+		Scanning:  ix.scanning,
+		Source:    ix.currentSource,
+		Done:      ix.scanDone,
+		Total:     ix.scanTotal,
+		LastScan:  ix.lastScan,
+		LastError: ix.lastError,
+	}
 }
 
 func (ix *Index) scanSource(src source.Source) error {
