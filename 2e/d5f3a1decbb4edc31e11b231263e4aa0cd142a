@@ -1,0 +1,116 @@
+internal/index/store.go
+  s_b252c4956cbd49::t_086916b3664d2f 32-33
+  s_b252c4956cbd49::t_afb5e2ddbc7b68 66
+  s_b252c4956cbd49::t_484c3e8ad33543 148,150-158,161-162,168-173
+  s_b252c4956cbd49::t_2bcb74cc699fcb 6
+  s_b252c4956cbd49::t_1a17e8a2951773 67-68
+  s_b252c4956cbd49::t_bd7aa06d936f62 5
+  s_b252c4956cbd49::t_66f1bbe3ea7f60 147,149,159-160,163-167
+  s_b252c4956cbd49::t_9812589d7bccd2 103-105
+  s_b252c4956cbd49::t_3953464397d183 87
+web/index.html
+  s_b252c4956cbd49::t_797f7ccb630ff2 119-121,130-132,135-136,138-142
+  s_b252c4956cbd49::t_5403dc52392433 66
+  s_b252c4956cbd49::t_86d1e89db1ceca 122-129,133-134
+  s_b252c4956cbd49::t_2d04a748aff665 137
+CHANGELOG.md
+  s_b252c4956cbd49::t_c3beb82ed891e6 21
+  s_b252c4956cbd49::t_2adeb1c9823062 40
+  s_b252c4956cbd49::t_b915d326c5ea52 18
+README.md
+  s_b252c4956cbd49::t_8d187e629ff49a 19
+  s_b252c4956cbd49::t_53411ecb080ee2 10
+internal/source/opencode/opencode.go
+  s_b252c4956cbd49::t_7e559a2ed162bc 121
+  s_b252c4956cbd49::t_35346307386f45 212,216,223
+  s_b252c4956cbd49::t_2b28a47b664f26 79
+  s_b252c4956cbd49::t_33cd29c49ea9ea 213-215,217-222,224-226
+web/state.js
+  s_b252c4956cbd49::t_f399727ef37950 37
+  s_b252c4956cbd49::t_72a0c1cdd2cb5f 28
+internal/source/codex/codex.go
+  s_b252c4956cbd49::t_02c4e040b560a7 176
+  s_b252c4956cbd49::t_571d60f4bc4196 299,302,308,313
+  s_b252c4956cbd49::t_cb4e4e0f95c5d4 237
+  s_b252c4956cbd49::t_a293dd20969bea 269
+web/style.css
+  s_b252c4956cbd49::t_e7818299f9e269 984-985
+  s_b252c4956cbd49::t_1599927dc5f714 1099-1100
+  s_b252c4956cbd49::t_0c79851eefc47e 969-983
+web/app.js
+  s_b252c4956cbd49::t_5c40b1d7a85571 108-114
+internal/model/model.go
+  s_b252c4956cbd49::t_7f83595422bb42 79-84
+  s_b252c4956cbd49::t_a438f5aee4bfc3 85-86
+  s_b252c4956cbd49::t_5b26b183c5daae 77-78
+internal/index/index.go
+  s_b252c4956cbd49::t_5cba7ce5825046 134
+  s_b252c4956cbd49::t_9850e50321f81c 191
+  s_b252c4956cbd49::t_65aeeb2a462a85 46-58
+  s_b252c4956cbd49::t_dd7087e1a86f6f 192-194,201-203
+  s_b252c4956cbd49::t_f0ee7010b80ece 381
+web/dashboard.js
+  s_b252c4956cbd49::t_081c5d11c9b0b1 560-567
+  s_b252c4956cbd49::t_ff27b0e0111c47 533-535,537-541,543-548,550-557,569,571-572,581,583-589
+  s_b252c4956cbd49::t_3e40fda2576ade 580
+  s_b252c4956cbd49::t_c286ca885897fc 575-578
+  s_b252c4956cbd49::t_919f6adde4b249 621,623,632
+  s_b252c4956cbd49::t_bb87c1c0475025 664
+  s_b252c4956cbd49::t_ec9983c9099cbf 523-532,558-559,570,573-574,579,582
+  s_b252c4956cbd49::t_ef5f13c2b21210 685-686
+  s_b252c4956cbd49::t_7c53543885ab3c 2-3
+  s_b252c4956cbd49::t_cc8f5f50f03403 568
+  s_b252c4956cbd49::t_7a19d1bdddb574 520-522
+internal/api/server.go
+  s_b252c4956cbd49::t_5e7d82f285c5eb 170
+  s_b252c4956cbd49::t_038abb4d576c90 35
+  s_b252c4956cbd49::t_f4ce7a039ec11f 171,180
+  s_b252c4956cbd49::t_a5945b8a585ef0 172-179,181-184
+  s_b252c4956cbd49::t_cd85f5c4efe312 254-257
+internal/source/claude/claude.go
+  s_b252c4956cbd49::t_5dc75b34ee8588 249,256
+  s_b252c4956cbd49::t_6b36854ec8eb20 136
+  s_b252c4956cbd49::t_5cfe602849bf3d 210
+internal/index/query.go
+  s_b252c4956cbd49::t_8325296fe366a9 374,379
+  s_b252c4956cbd49::t_a98577bfacc7b5 375-377,380-383,385,390-396,398-402,404-430,433
+  s_b252c4956cbd49::t_0bc8e2e7991bb2 378,384,386-389,397,403,431-432,434-435
+internal/source/dsh/dsh.go
+  s_b252c4956cbd49::t_e7e7864b1bac49 310,315
+  s_b252c4956cbd49::t_c6658589ebe448 287
+  s_b252c4956cbd49::t_efaa15b331cddd 417
+  s_b252c4956cbd49::t_e7cfeed8f54deb 415-416
+  s_b252c4956cbd49::t_96734edef5ea5b 263
+web/api.js
+  s_b252c4956cbd49::t_1213dc1b35e6ee 38
+internal/index/index_test.go
+  s_b252c4956cbd49::t_44ff8c19266864 23-24,40-41
+  s_b252c4956cbd49::t_212c4563cd2b0e 136-139
+  s_b252c4956cbd49::t_13da7732ecdb5e 108-109,120-121
+  s_b252c4956cbd49::t_9e9ad484543b98 110-113,122-123,132-135
+  s_b252c4956cbd49::t_3ea41571e63037 114-119
+  s_b252c4956cbd49::t_1f4738d0a07653 66,71,76,81,86
+web/smoke.mjs
+  s_b252c4956cbd49::t_ada785d27c140c 86
+  s_b252c4956cbd49::t_64ae8dccfea17b 242-252,255
+  s_b252c4956cbd49::t_90b1ff4447485a 253-254
+internal/source/source.go
+  s_b252c4956cbd49::t_b8c9f7fae3f3c0 40-43
+  s_b252c4956cbd49::t_6785256c263e46 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "2ed5f3a1decbb4edc31e11b231263e4aa0cd142a",
+  "prompts": {},
+  "sessions": {
+    "s_b252c4956cbd49": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea8234659ffepKi5IzkGGeOPUI",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
