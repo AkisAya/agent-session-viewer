@@ -1,0 +1,28 @@
+web/detail.js
+  s_18c6b69149aac6::t_deb2c3396b05d9 783-785
+web/app.js
+  s_18c6b69149aac6::t_05eae37cb2036c 2
+  s_18c6b69149aac6::t_eee30063b51e87 15
+README.md
+  s_18c6b69149aac6::t_4274742cce0835 1-4,7,9-11,13-29,31,33-44
+  s_18c6b69149aac6::t_b2da527a213380 120,122-126,128
+web/index.html
+  s_18c6b69149aac6::t_79e4a584ee7366 277-278
+  s_18c6b69149aac6::t_13455ad07a9601 232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "f3c9936cac592787ea1f080eed31e888aaddf4fb",
+  "prompts": {},
+  "sessions": {
+    "s_18c6b69149aac6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea78841d6ffeZM0zhmXLg31701",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
