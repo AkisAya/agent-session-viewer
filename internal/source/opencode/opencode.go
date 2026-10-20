@@ -76,6 +76,7 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 	msgCounts := s.messageCounts(db)
 	previews := s.previews(db)
 	activity := s.activity(db)
+	hours := s.hours(db)
 	tools := s.toolCounts(db)
 	compacts := s.compactCounts(db)
 
@@ -117,6 +118,7 @@ func (s *Source) Scan(prev map[string]source.Cursor, emit func(source.Delta)) (m
 			Tokens:    source.Usage{Replace: true, In: tin, Out: tout, Cache: cache},
 			Cost:      source.Amount{Replace: true, Value: cost},
 			Activity:  source.Histogram{Replace: true, Counts: activity[id]},
+			Hours:     source.Histogram{Replace: true, Counts: hours[id]},
 			Tools:     source.Histogram{Replace: true, Counts: tools[id]},
 			ParentID:  parentID,
 			Cursor:    source.Cursor{ID: id},
@@ -200,6 +202,25 @@ func (s *Source) activity(db *sql.DB) map[string]map[string]int {
 	// Legacy sessions live only in the message table.
 	rows2, err := db.Query(`SELECT session_id,
 		substr(datetime(time_created/1000,'unixepoch','localtime'),1,10), count(*)
+		FROM message GROUP BY session_id, 2`)
+	if err == nil {
+		s.readDayCounts(rows2, out, func(id string) bool { _, seen := out[id]; return !seen })
+	}
+	return out
+}
+
+// hours buckets every message of a session into its local day and hour.
+func (s *Source) hours(db *sql.DB) map[string]map[string]int {
+	out := map[string]map[string]int{}
+	rows, err := db.Query(`SELECT session_id,
+		substr(datetime(time_created/1000,'unixepoch','localtime'),1,13), count(*)
+		FROM session_message WHERE type IN ('user','assistant') GROUP BY session_id, 2`)
+	if err == nil {
+		s.readDayCounts(rows, out, nil)
+	}
+	// Legacy sessions live only in the message table.
+	rows2, err := db.Query(`SELECT session_id,
+		substr(datetime(time_created/1000,'unixepoch','localtime'),1,13), count(*)
 		FROM message GROUP BY session_id, 2`)
 	if err == nil {
 		s.readDayCounts(rows2, out, func(id string) bool { _, seen := out[id]; return !seen })

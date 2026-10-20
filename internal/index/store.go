@@ -2,6 +2,8 @@ package index
 
 import (
 	"database/sql"
+	"strconv"
+	"strings"
 
 	"github.com/akisaya/agent-session-viewer/internal/source"
 )
@@ -27,6 +29,8 @@ type writer struct {
 	sumUsage    *sql.Stmt
 	delActivity *sql.Stmt
 	upActivity  *sql.Stmt
+	delHours    *sql.Stmt
+	upHours     *sql.Stmt
 	delTools    *sql.Stmt
 	upTools     *sql.Stmt
 }
@@ -59,6 +63,9 @@ func newWriter(tx *sql.Tx) (*writer, error) {
 		{&w.delActivity, `DELETE FROM activity WHERE agent=? AND id=? AND src=?`},
 		{&w.upActivity, `INSERT INTO activity(agent,id,src,day,msgs) VALUES(?,?,?,?,?)
 			ON CONFLICT(agent,id,src,day) DO UPDATE SET msgs = msgs + excluded.msgs`},
+		{&w.delHours, `DELETE FROM activity_hour WHERE agent=? AND id=? AND src=?`},
+		{&w.upHours, `INSERT INTO activity_hour(agent,id,src,day,hour,msgs) VALUES(?,?,?,?,?,?)
+			ON CONFLICT(agent,id,src,day,hour) DO UPDATE SET msgs = msgs + excluded.msgs`},
 		{&w.delTools, `DELETE FROM tool_use WHERE agent=? AND id=? AND src=?`},
 		{&w.upTools, `INSERT INTO tool_use(agent,id,src,tool,cnt) VALUES(?,?,?,?,?)
 			ON CONFLICT(agent,id,src,tool) DO UPDATE SET cnt = cnt + excluded.cnt`},
@@ -77,7 +84,7 @@ func newWriter(tx *sql.Tx) (*writer, error) {
 func (w *writer) close() {
 	for _, s := range []*sql.Stmt{
 		w.insSession, w.getSession, w.upUsage, w.sumUsage,
-		w.delActivity, w.upActivity, w.delTools, w.upTools,
+		w.delActivity, w.upActivity, w.delHours, w.upHours, w.delTools, w.upTools,
 	} {
 		if s != nil {
 			_ = s.Close()
@@ -91,6 +98,9 @@ func (w *writer) apply(agent string, d source.Delta) error {
 		return err
 	}
 	if err := w.applyActivity(agent, d); err != nil {
+		return err
+	}
+	if err := w.applyHours(agent, d); err != nil {
 		return err
 	}
 	if err := w.applyTools(agent, d); err != nil {
@@ -128,6 +138,33 @@ func (w *writer) applyActivity(agent string, d source.Delta) error {
 			continue
 		}
 		if _, err := w.upActivity.Exec(agent, d.ID, srcKey(d), day, n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyHours folds a delta's per-day-hour message counts into activity_hour
+// with the same per-source replace/additive semantics as applyActivity. Keys
+// look like "2026-10-20 14"; anything else is dropped.
+func (w *writer) applyHours(agent string, d source.Delta) error {
+	if d.Hours.Replace {
+		if _, err := w.delHours.Exec(agent, d.ID, srcKey(d)); err != nil {
+			return err
+		}
+	} else if len(d.Hours.Counts) == 0 {
+		return nil
+	}
+	for key, n := range d.Hours.Counts {
+		day, hourText, ok := strings.Cut(key, " ")
+		if !ok || day == "" || n <= 0 {
+			continue
+		}
+		hour, err := strconv.Atoi(hourText)
+		if err != nil || hour < 0 || hour > 23 {
+			continue
+		}
+		if _, err := w.upHours.Exec(agent, d.ID, srcKey(d), day, hour, n); err != nil {
 			return err
 		}
 	}

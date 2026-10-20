@@ -1,6 +1,6 @@
 // dashboard.js — the "看板" view: KPI cards, heatmap, trend, rankings, the
-// per-agent comparison, top sessions and the weekday rhythm, plus the scoped
-// aggregate fetches that feed them.
+// per-agent comparison, top sessions and the work rhythm (last 7 days + hour
+// of day), plus the scoped aggregate fetches that feed them.
 
 import { $, esc, fmtNum, fmtTime, shortPath, cwdKey, dayKey, displayTitle, TAB_LABEL, notify } from "./util.js";
 import { state } from "./state.js";
@@ -517,31 +517,76 @@ export function renderTopSessions(el, sessions) {
   if (sub) sub.textContent = `按 ${METRIC_LABEL[metric] || "花费"} · 前 ${top.length}`;
 }
 
-// renderWeekday sums messages by local weekday from the trend series.
-export function renderWeekday(el, days) {
+// rhythmChart renders one row of slim bars with a label grid aligned to the
+// bars; labels holds one entry per bar, empty strings for unlabelled slots.
+// The peak bar is highlighted.
+function rhythmChart(values, tip, labels) {
+  const max = Math.max(...values, 1);
+  const peak = values.indexOf(Math.max(...values));
+  const bars = values
+    .map((v, i) => `<i class="rh-bar${v ? (i === peak ? " peak" : "") : " zero"}" style="height:${v ? Math.max(4, Math.round((v / max) * 100)) : 2}%" data-tip="${esc(tip(v, i))}"></i>`)
+    .join("");
+  return `<div class="rhythm-bars" aria-hidden="true">${bars}</div>
+    <div class="rhythm-axis">${labels.map((l) => `<span>${esc(String(l))}</span>`).join("")}</div>`;
+}
+
+// renderWeek draws the selected metric over the last 7 days, read from the
+// trend series the activity panel already fetched.
+export function renderWeek(el, days, metric) {
   if (!el) return;
-  const names = ["一", "二", "三", "四", "五", "六", "日"];
-  const sums = [0, 0, 0, 0, 0, 0, 0];
+  metric = metric || "msgs";
+  const map = new Map((days || []).map((d) => [d.day, d]));
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const rows = [];
   let total = 0;
-  for (const d of days || []) {
-    const dt = new Date(d.day + "T00:00:00");
-    if (isNaN(dt)) continue;
-    const n = d.msgs || 0;
-    sums[(dt.getDay() + 6) % 7] += n;
-    total += n;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    const v = metricValue(map.get(dayKey(d)), metric);
+    rows.push({ label: dayKey(d), v });
+    total += v;
   }
-  const max = Math.max(...sums, 1);
-  el.innerHTML = `<div class="weekday">${sums
-    .map(
-      (v, i) => `<div class="wd-col" data-tip="${names[i]} · ${fmtNum(v)} 条消息">
-        <span class="wd-val">${fmtNum(v)}</span>
-        <span class="wd-bar"><i style="height:${Math.max(2, Math.round((v / max) * 100))}%"></i></span>
-        <span class="wd-day">${names[i]}</span>
-      </div>`
-    )
-    .join("")}</div>`;
-  const sub = $("weekday-sub");
-  if (sub) sub.textContent = `共 ${fmtNum(total)} 条消息 · 按本地日期`;
+  el.innerHTML = rhythmChart(
+    rows.map((x) => x.v),
+    (v, i) => `${rows[i].label} · ${metricText(metric, v)}`,
+    rows.map((x) => x.label.slice(5))
+  );
+  const peak = rows.reduce((a, b) => (b.v > a.v ? b : a));
+  const sub = $("week-sub");
+  if (sub) sub.textContent = peak.v ? rhythmSub(metric, `峰值 ${peak.label.slice(5)} ${metricText(metric, peak.v)}`, total) : "暂无数据";
+}
+
+// hourAxis labels 0 / 6 / 12 / 18 / 23 so the chart never reads as going past
+// 23:00 and each label sits under its own bar.
+function hourAxis() {
+  const labels = new Array(24).fill("");
+  for (const h of [0, 6, 12, 18, 23]) labels[h] = h;
+  return labels;
+}
+
+// renderHourly draws the selected metric for today, by local hour of day.
+export function renderHourly(el, hours, metric) {
+  if (!el) return;
+  metric = metric || "msgs";
+  const vals = new Array(24).fill(0);
+  let total = 0;
+  for (const h of hours || []) {
+    if (h.hour < 0 || h.hour > 23) continue;
+    const v = metricValue(h, metric);
+    vals[h.hour] += v;
+    total += v;
+  }
+  el.innerHTML = rhythmChart(vals, (v, i) => `${i} 点 · ${metricText(metric, v)}`, hourAxis());
+  const peak = vals.indexOf(Math.max(...vals));
+  const sub = $("hourly-sub");
+  if (sub) sub.textContent = vals[peak] ? rhythmSub(metric, `峰值 ${peak} 点 ${metricText(metric, vals[peak])}`, total) : "暂无数据";
+}
+
+// rhythmSub appends the period total unless the metric is per-day session
+// counts, whose sum is meaningless because sessions overlap across buckets.
+function rhythmSub(metric, peak, total) {
+  return metric === "sessions" ? peak : `${peak} · 合计 ${metricText(metric, total)}`;
 }
 
 // settle turns a fetch promise into {ok, v} so one failing panel never blanks
@@ -573,8 +618,9 @@ export async function loadPanels() {
   topP.set("sort", "updated");
   topP.set("limit", "500");
 
-  const [trend, tools, models, top] = await Promise.all([
+  const [trend, hours, tools, models, top] = await Promise.all([
     settle(api.trend(trendP), "趋势"),
+    settle(api.hours(scope), "节奏"),
     settle(api.tools(toolsP), "工具"),
     settle(api.models(scope), "模型"),
     settle(api.sessions(topP), "会话"),
@@ -583,6 +629,7 @@ export async function loadPanels() {
   // Keep the previous panel contents when a request fails (rather than
   // flashing "暂无数据") so a transient error does not wipe the view.
   if (trend.ok) state.trend = trend.v || [];
+  if (hours.ok) state.hours = hours.v || [];
   if (tools.ok) state.tools = tools.v || { tools: [], total: 0 };
   if (models.ok) state.models = models.v || [];
   if (top.ok) state.top = (top.v && top.v.sessions) || [];
@@ -614,6 +661,7 @@ export function syncDashboardControls() {
   };
   set("#hm-metric", (b) => b.dataset.m === state.hmMetric);
   set("#hm-range", (b) => Number(b.dataset.r) === state.hmRange);
+  set("#rhythm-metric", (b) => b.dataset.m === state.rhythmMetric);
   set("#models-metric", (b) => b.dataset.m === state.modelsMetric);
   set("#tools-metric", (b) => b.dataset.m === state.toolsMetric);
   set("#top-metric", (b) => b.dataset.m === state.topMetric);
@@ -634,6 +682,7 @@ export function paintPanels() {
   renderToolsFull($("tools-body"), state.tools);
   renderAgentCompare($("agent-body"), state.agents);
   renderTopSessions($("top-body"), state.top);
-  renderWeekday($("weekday-body"), state.trend);
+  renderWeek($("week-body"), state.trend, state.rhythmMetric);
+  renderHourly($("hourly-body"), state.hours, state.rhythmMetric);
   syncDashboardControls();
 }

@@ -25,6 +25,7 @@ export const state = {
   scan: null,
   // dashboard data (scoped by agent + cwd)
   trend: [],
+  hours: [],
   models: [],
   agents: [],
   totalStats: {},
@@ -33,6 +34,7 @@ export const state = {
   // display settings
   hmRange: store.get("as-hm-range", 180),
   hmMetric: store.get("as-hm-metric", "msgs"),
+  rhythmMetric: store.get("as-rhythm-metric", "msgs"),
   modelsMetric: store.get("as-models-metric", "tokens"),
   toolsMetric: store.get("as-tools-metric", "count"),
   topMetric: store.get("as-top-metric", "cost"),

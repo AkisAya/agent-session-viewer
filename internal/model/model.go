@@ -74,6 +74,16 @@ type ActivityDay struct {
 	Sessions int    `json:"sessions"`
 }
 
+// HourPoint is one local hour of today, with the token and cost of each
+// session apportioned by message share (mirroring TrendPoint).
+type HourPoint struct {
+	Hour     int     `json:"hour"`
+	Msgs     int64   `json:"msgs"`
+	Sessions int     `json:"sessions"`
+	Tokens   int64   `json:"tokens"`
+	Cost     float64 `json:"cost"`
+}
+
 // ToolStat aggregates one normalized tool across sessions.
 type ToolStat struct {
 	Tool     string `json:"tool"`

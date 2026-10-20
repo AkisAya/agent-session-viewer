@@ -20,8 +20,8 @@ func openTest(t *testing.T) *Index {
 	return ix
 }
 
-// fold applies the histogram half of a delta (activity + tool use) the way a
-// scan does, in its own transaction.
+// fold applies the histogram half of a delta (activity + hours + tool use) the
+// way a scan does, in its own transaction.
 func fold(t *testing.T, ix *Index, agent string, d source.Delta) {
 	t.Helper()
 	tx, err := ix.db.Begin()
@@ -36,6 +36,9 @@ func fold(t *testing.T, ix *Index, agent string, d source.Delta) {
 	defer w.close()
 	if err := w.applyActivity(agent, d); err != nil {
 		t.Fatalf("applyActivity: %v", err)
+	}
+	if err := w.applyHours(agent, d); err != nil {
+		t.Fatalf("applyHours: %v", err)
 	}
 	if err := w.applyTools(agent, d); err != nil {
 		t.Fatalf("applyTools: %v", err)
@@ -60,22 +63,27 @@ func insertSession(t *testing.T, ix *Index, agent, id, cwd, parent, relation str
 func TestHistogramPerSource(t *testing.T) {
 	ix := openTest(t)
 	insertSession(t, ix, "codex", "s1", "/tmp/p", "", "")
+	today := time.Now().Format("2006-01-02")
 
 	// Full parse of the first rollout file.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
 		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 3}},
+		Hours:    source.Histogram{Replace: true, Counts: map[string]int{today + " 09": 3}},
 		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 2}}})
 	// Full parse of the second file of the same session: additive across src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-b.jsonl",
 		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 4}},
+		Hours:    source.Histogram{Replace: true, Counts: map[string]int{today + " 09": 1, today + " 14": 3, "2000-01-01 10": 9}},
 		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 1}}})
 	// An incremental delta (newly appended bytes only) merges into its src.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
 		Activity: source.Histogram{Counts: map[string]int{"2026-01-03": 2}},
+		Hours:    source.Histogram{Counts: map[string]int{today + " 09": 2, "garbage": 7, today + " 25": 5}},
 		Tools:    source.Histogram{Counts: map[string]int{"edit": 1}}})
 	// A full re-parse of file A replaces only A's own rows.
 	fold(t, ix, "codex", source.Delta{ID: "s1", Key: "rollout-a.jsonl",
 		Activity: source.Histogram{Replace: true, Counts: map[string]int{"2026-01-02": 1}},
+		Hours:    source.Histogram{Replace: true, Counts: map[string]int{today + " 09": 2}},
 		Tools:    source.Histogram{Replace: true, Counts: map[string]int{"shell": 5}}})
 
 	days, err := ix.Activity("codex", "/tmp/p")
@@ -97,6 +105,22 @@ func TestHistogramPerSource(t *testing.T) {
 		t.Fatalf("tools = %+v, want shell 6 (1 session)", tools.Tools)
 	}
 
+	// Hours are per day: only today's buckets come back, all 24 of them.
+	// "garbage" and hour 25 were rejected, and the 2000-01-01 row is excluded.
+	hours, err := ix.Hours("codex", "/tmp/p")
+	if err != nil {
+		t.Fatalf("hours: %v", err)
+	}
+	if len(hours) != 24 {
+		t.Fatalf("len(hours) = %d, want 24", len(hours))
+	}
+	if hours[9].Msgs != 3 || hours[9].Sessions != 1 || hours[14].Msgs != 3 || hours[14].Sessions != 1 {
+		t.Fatalf("hours 9/14 = %+v, %+v, want 3 msgs each from 1 session", hours[9], hours[14])
+	}
+	if hours[10].Msgs != 0 || hours[0].Msgs != 0 || hours[23].Msgs != 0 {
+		t.Fatalf("non-today/idle hours = %+v %+v %+v, want zero", hours[10], hours[0], hours[23])
+	}
+
 	// Scoping by another agent or directory must find nothing.
 	other, err := ix.Activity("claude", "")
 	if err != nil {
@@ -104,6 +128,15 @@ func TestHistogramPerSource(t *testing.T) {
 	}
 	if len(other) != 0 {
 		t.Fatalf("claude activity = %+v, want empty", other)
+	}
+	otherHours, err := ix.Hours("claude", "")
+	if err != nil {
+		t.Fatalf("hours: %v", err)
+	}
+	for _, h := range otherHours {
+		if h.Msgs != 0 {
+			t.Fatalf("claude hours = %+v, want all zero", otherHours)
+		}
 	}
 }
 

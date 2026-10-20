@@ -32,6 +32,7 @@ func New(ix *index.Index, web fs.FS, version string) http.Handler {
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
 	mux.HandleFunc("GET /api/activity", s.handleActivity)
+	mux.HandleFunc("GET /api/hours", s.handleHours)
 	mux.HandleFunc("GET /api/trend", s.handleTrend)
 	mux.HandleFunc("GET /api/models", s.handleModels)
 	mux.HandleFunc("GET /api/tools", s.handleTools)
@@ -166,6 +167,21 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, days)
 }
 
+// handleHours returns today's by-hour histogram (msgs/sessions/tokens/cost)
+// for the scope.
+func (s *Server) handleHours(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	hours, err := s.ix.Hours(q.Get("agent"), q.Get("cwd"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if hours == nil {
+		hours = []model.HourPoint{}
+	}
+	writeJSON(w, hours)
+}
+
 func (s *Server) handleTrend(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	days, _ := strconv.Atoi(q.Get("days"))
@@ -235,13 +251,10 @@ func (s *Server) handleRescan(w http.ResponseWriter, r *http.Request) {
 func (s *Server) static() http.Handler {
 	fileServer := http.FileServerFS(s.web)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Assets are versioned with the binary, not the URL; a short cache is
-		// safe and avoids re-reading the embedded files on every view switch.
-		if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".svg") {
-			w.Header().Set("Cache-Control", "public, max-age=600")
-		} else {
-			w.Header().Set("Cache-Control", "no-cache")
-		}
+		// Revalidate on every load. A rebuilt binary ships new JS/CSS under the
+		// same URLs, and a blind cache would pair the new index.html with stale
+		// modules (e.g. a renderer looking for an element that no longer exists).
+		w.Header().Set("Cache-Control", "no-cache")
 		if r.URL.Path == "/" {
 			http.ServeFileFS(w, r, s.web, "index.html")
 			return

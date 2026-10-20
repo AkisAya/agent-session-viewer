@@ -133,6 +133,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 		sawCost                                   bool
 	)
 	act := map[string]int{}
+	hrs := map[string]int{}
 	tools := map[string]int{}
 	// Claude Code writes one line per content block of a response, each
 	// repeating the same message id and usage; count usage once per id.
@@ -206,6 +207,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 				}
 				if !ts.IsZero() {
 					act[ts.Local().Format("2006-01-02")]++
+					hrs[ts.Local().Format("2006-01-02 15")]++
 				}
 				// Tool calls live in the assistant content blocks; tool
 				// results are separate user blocks and must not be counted.
@@ -244,12 +246,14 @@ func (s *Source) scanFile(path string, cur source.Cursor, emit func(source.Delta
 	d.CreatedAt = minT
 	d.UpdatedAt = maxT
 	d.Activity = source.Histogram{Counts: act}
+	d.Hours = source.Histogram{Counts: hrs}
 	d.Tools = source.Histogram{Counts: tools}
 	if full {
 		// A whole-file parse is authoritative for this resource: it may
 		// overwrite values left behind by a previous run (e.g. after the file
 		// was rewritten).
 		d.Activity.Replace = true
+		d.Hours.Replace = true
 		d.Tools.Replace = true
 		d.Msgs.Replace = true
 		d.Compacts.Replace = true

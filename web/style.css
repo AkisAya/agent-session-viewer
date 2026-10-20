@@ -966,13 +966,23 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
 .top-rank { width: 20px; color: var(--muted-2); font-size: 11px; text-align: right; flex: 0 0 auto; }
 .top-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--fg); }
 .top-val { flex: 0 0 auto; color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 12px; }
-.weekday { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; height: 150px; padding: 8px 4px 0; }
-.wd-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; min-width: 0; }
-.wd-val { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.wd-bar { flex: 1 1 auto; width: min(46px, 70%); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px 6px 0 0; display: flex; align-items: flex-end; overflow: hidden; }
-.wd-bar i { display: block; width: 100%; background: var(--accent); opacity: .75; border-radius: 5px 5px 0 0; }
-.wd-day { color: var(--muted-2); font-size: 11px; }
-
+/* work rhythm: weekday and hour-of-day bar charts side by side */
+.rhythm { display: flex; gap: 22px; }
+.rhythm-col { flex: 1 1 0; min-width: 0; }
+.rhythm-col + .rhythm-col { border-left: 1px solid var(--border); padding-left: 20px; }
+.rhythm-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: 600; }
+.rhythm-head span { color: var(--muted-2); font-size: 11.5px; font-weight: 400; }
+.rhythm-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 110px;
+  /* faint quarter gridlines */
+  background: repeating-linear-gradient(to top, transparent 0 calc(25% - 1px), var(--border) calc(25% - 1px) 25%);
+}
+.rh-bar { flex: 1 1 0; min-width: 2px; background: var(--accent); opacity: .7; border-radius: 2px 2px 0 0; }
+.rh-bar.peak { opacity: 1; }
+.rh-bar.zero { background: var(--border); }
+.rh-bar:hover { opacity: 1; }
+.rhythm-axis { display: flex; gap: 2px; color: var(--muted-2); font-size: 10.5px; margin-top: 4px; }
+.rhythm-axis span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; }
 .th-sort { background: none; border: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
 .th-sort:hover { color: var(--fg); }
 .dt th[aria-sort] .th-sort { color: var(--accent); }
@@ -1086,7 +1096,8 @@ button.tag-sub:hover { border-color: var(--accent); color: var(--accent); }
   .version, .ver { display: none; }
   .toolbar { gap: 8px; }
   .session-table .st-cwd, .session-table .st-model { max-width: 100px; }
-  .weekday { gap: 6px; }
+  .rhythm { flex-direction: column; gap: 14px; }
+  .rhythm-col + .rhythm-col { border-left: none; padding-left: 0; }
   .help-panel { align-self: flex-end; border-radius: 14px 14px 0 0; }
 }
 

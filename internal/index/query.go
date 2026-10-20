@@ -371,6 +371,68 @@ func (ix *Index) Trend(agent, cwd string, days int) ([]model.TrendPoint, error) 
 	return out, nil
 }
 
+// Hours returns today's per-hour activity with a pro-rated share of each
+// session's tokens and cost, using the same apportionment as Trend. All 24
+// buckets are returned, zero-valued when idle.
+func (ix *Index) Hours(agent, cwd string) ([]model.HourPoint, error) {
+	where, args := scopeWhere(agent, cwd)
+	where += ` AND a.day = date('now','localtime')`
+	rows, err := ix.db.Query(`SELECT a.hour, a.msgs,
+			(SELECT COALESCE(sum(x.msgs),0) FROM activity x
+			 WHERE x.agent = a.agent AND x.id = a.id) AS sess_msgs,
+			s.cost, s.tokens_in + s.tokens_out + s.cache_read AS sess_tokens, a.id
+		FROM activity_hour a JOIN session s ON s.agent = a.agent AND s.id = a.id
+		WHERE `+where+` ORDER BY a.hour`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type acc struct {
+		msgs, tokens int64
+		cost         float64
+		sessions     map[string]struct{}
+	}
+	byHour := map[int]*acc{}
+	for rows.Next() {
+		var hour int
+		var id string
+		var msgs, sessMsgs, sessTokens int64
+		var cost float64
+		if err := rows.Scan(&hour, &msgs, &sessMsgs, &cost, &sessTokens, &id); err != nil {
+			return nil, err
+		}
+		a := byHour[hour]
+		if a == nil {
+			a = &acc{sessions: map[string]struct{}{}}
+			byHour[hour] = a
+		}
+		a.msgs += msgs
+		if sessMsgs > 0 {
+			share := float64(msgs) / float64(sessMsgs)
+			a.tokens += int64(float64(sessTokens) * share)
+			a.cost += cost * share
+		}
+		a.sessions[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]model.HourPoint, 24)
+	for h := 0; h < 24; h++ {
+		a := byHour[h]
+		out[h] = model.HourPoint{Hour: h}
+		if a != nil {
+			out[h].Msgs = a.msgs
+			out[h].Sessions = len(a.sessions)
+			out[h].Tokens = a.tokens
+			out[h].Cost = a.cost
+		}
+	}
+	return out, nil
+}
+
 // Models aggregates usage per model name within the given scope. Sessions with
 // no recorded model are grouped under an empty name.
 func (ix *Index) Models(agent, cwd string) ([]model.ModelStat, error) {

@@ -83,6 +83,7 @@ const shapes = {
   "/api/projects": [],
   "/api/sessions": { sessions: [], total: 0, limit: 60, offset: 0 },
   "/api/trend": [],
+  "/api/hours": [],
   "/api/tools": { tools: [], total: 0 },
   "/api/models": [],
   "/api/relations": [],
@@ -238,8 +239,20 @@ dash.renderTopSessions(cache.get("top-body"), [
 ]);
 assert(cache.get("top-body").innerHTML.includes("7 次"), "top sessions can rank by tool calls");
 state.topMetric = "cost";
-dash.renderWeekday(cache.get("weekday-body"), [{ day: "2026-01-01", msgs: 5 }]);
-assert(cache.get("weekday-body").innerHTML.includes("wd-col"), "weekday chart renders bars");
+const weekDays = [0, 1, 2].map((off) => {
+  const d = new Date();
+  d.setDate(d.getDate() - off);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+});
+dash.renderWeek(cache.get("week-body"), [{ day: weekDays[0], msgs: 5, tokens: 100 }], "msgs");
+assert(cache.get("week-body").innerHTML.includes("rh-bar"), "last-7-days chart renders bars");
+assert(cache.get("week-body").innerHTML.split("rh-bar").length === 8, "last-7-days chart renders 7 bars");
+dash.renderWeek(cache.get("week-body"), [{ day: weekDays[1], msgs: 5, tokens: 100 }], "tokens");
+assert(cache.get("week-sub").textContent.includes("100 tokens"), "last-7-days chart follows the metric");
+dash.renderHourly(cache.get("hourly-body"), [{ hour: 9, msgs: 4, sessions: 1, tokens: 50 }, { hour: 14, msgs: 1, tokens: 10 }], "tokens");
+const hourlyHTML = cache.get("hourly-body").innerHTML;
+assert(hourlyHTML.split("rh-bar").length === 25, "hourly chart renders all 24 hour bars");
+assert(cache.get("hourly-sub").textContent.includes("峰值 9 点 50 tokens"), "hourly sub reports the peak hour in the selected metric");
 
 /* ---------- dashboard ---------- */
 dash.renderActivity(cache.get("activity-body"), [{ day: "2026-01-02", msgs: 5, sessions: 1, tokens: 10 }], 90, "msgs", true);

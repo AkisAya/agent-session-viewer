@@ -173,6 +173,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	// counting. Message timestamps are bucketed into local days for the
 	// activity heatmap.
 	evAct, respAct := map[string]int{}, map[string]int{}
+	evHrs, respHrs := map[string]int{}, map[string]int{}
 	evTools, respTools := map[string]int{}, map[string]int{}
 
 	for _, raw := range lines {
@@ -233,6 +234,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 					d.Msgs.Value++
 					if !ts.IsZero() {
 						evAct[ts.Local().Format("2006-01-02")]++
+						evHrs[ts.Local().Format("2006-01-02 15")]++
 					}
 					if ev.Item.Type == "UserMessage" && firstUser == "" {
 						firstUser = itemText(ev.Item)
@@ -264,6 +266,7 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 			case ri.Type == "message" && (ri.Role == "user" || ri.Role == "assistant"):
 				if !ts.IsZero() {
 					respAct[ts.Local().Format("2006-01-02")]++
+					respHrs[ts.Local().Format("2006-01-02 15")]++
 				}
 				if ri.Role == "user" {
 					if t := respText(&ri); t != "" && !isSynthetic(t) && respUser == "" {
@@ -293,17 +296,21 @@ func (s *Source) scanFile(path string, cur source.Cursor, titles map[string]stri
 	// it records every function call (shell, patch, plan) while the event
 	// stream only surfaces a subset of them.
 	act, tools := evAct, respTools
+	hrs := evHrs
 	if sumCounts(evAct) == 0 {
 		act = respAct
+		hrs = respHrs
 	}
 	if len(respTools) == 0 {
 		tools = evTools
 	}
 	d.Activity = source.Histogram{Counts: act}
+	d.Hours = source.Histogram{Counts: hrs}
 	d.Tools = source.Histogram{Counts: tools}
 	if full {
 		// A whole-file parse is authoritative for this resource.
 		d.Activity.Replace = true
+		d.Hours.Replace = true
 		d.Tools.Replace = true
 		d.Compacts.Replace = true
 		if sumCounts(evAct) == 0 && sumCounts(respAct) > 0 {

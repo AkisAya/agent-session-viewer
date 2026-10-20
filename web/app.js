@@ -105,6 +105,13 @@ $("hm-metric").addEventListener("click", (e) => {
   setSeg("#hm-metric", b);
   paintPanels();
 });
+$("rhythm-metric").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  state.rhythmMetric = b.dataset.m;
+  store.set("as-rhythm-metric", state.rhythmMetric);
+  paintPanels();
+});
 $("hm-range").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
@@ -609,11 +616,6 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "f") $("detail-find-toggle").click();
     if (e.key === "[") adjacentSession(-1);
     if (e.key === "]") adjacentSession(1);
-    return;
-  }
-  if (e.key === "/") {
-    e.preventDefault();
-    if (state.view === "list") $("search").focus();
     return;
   }
   if (e.key === "?") {

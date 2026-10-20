@@ -63,7 +63,7 @@
       <span>subagent</span>
     </label>
     <select id="project-select" class="project-select" title="按项目目录筛选"></select>
-    <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…（/ 聚焦）" />
+    <input id="search" class="search" type="search" placeholder="搜索标题 / 目录 / 内容摘要…" />
     <select id="sort" class="sort">
       <option value="updated">按更新时间</option>
       <option value="created">按创建时间</option>
@@ -116,6 +116,30 @@
           </div>
         </div>
 
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h3>工作节奏</h3>
+            <div class="panel-tools">
+              <div class="seg" id="rhythm-metric">
+                <button data-m="msgs" class="active">消息</button>
+                <button data-m="sessions">会话</button>
+                <button data-m="tokens">Token</button>
+                <button data-m="cost">花费</button>
+              </div>
+            </div>
+          </div>
+          <div class="rhythm">
+            <div class="rhythm-col">
+              <div class="rhythm-head">近 7 天<span id="week-sub"></span></div>
+              <div class="panel-body" id="week-body"></div>
+            </div>
+            <div class="rhythm-col">
+              <div class="rhythm-head">按小时<span>今天 · 0-23 点</span><span id="hourly-sub"></span></div>
+              <div class="panel-body" id="hourly-body"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="panel">
           <div class="panel-head">
             <h3>模型分布</h3>
@@ -161,14 +185,6 @@
             </div>
           </div>
           <div class="panel-body" id="top-body"></div>
-        </div>
-
-        <div class="panel span-2">
-          <div class="panel-head">
-            <h3>工作节奏</h3>
-            <span class="panel-sub" id="weekday-sub"></span>
-          </div>
-          <div class="panel-body" id="weekday-body"></div>
         </div>
 
         <div class="panel span-2">
@@ -278,7 +294,6 @@
         <button id="help-close" class="btn">关闭</button>
       </div>
       <dl class="help-list">
-        <dt>/</dt><dd>聚焦搜索</dd>
         <dt>j / k</dt><dd>在会话列表中上下移动</dd>
         <dt>Enter</dt><dd>打开选中的会话</dd>
         <dt>[ / ]</dt><dd>上一个 / 下一个会话</dd>

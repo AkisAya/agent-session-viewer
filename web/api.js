@@ -35,6 +35,7 @@ export const api = {
   projects: (params) => request("/api/projects", { params }),
   sessions: (params, signal) => request("/api/sessions", { params, signal }),
   trend: (params) => request("/api/trend", { params }),
+  hours: (params) => request("/api/hours", { params }),
   tools: (params) => request("/api/tools", { params }),
   models: (params) => request("/api/models", { params }),
   relations: () => request("/api/relations"),

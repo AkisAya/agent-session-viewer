@@ -260,6 +260,7 @@ func (s *Source) scanFile(path, dirName string, cur source.Cursor, emit func(sou
 		Compacts:  source.Counter{Value: acc.compacts},
 		Tokens:    source.Usage{In: acc.tin, Out: acc.tout, Cache: acc.cache},
 		Activity:  source.Histogram{Counts: acc.activity},
+		Hours:     source.Histogram{Counts: acc.hours},
 		Tools:     source.Histogram{Counts: acc.tools},
 		Cursor:    cursor,
 	}
@@ -283,6 +284,7 @@ func (s *Source) scanFile(path, dirName string, cur source.Cursor, emit func(sou
 		d.Tokens.Replace = true
 		d.Cost.Replace = true
 		d.Activity.Replace = true
+		d.Hours.Replace = true
 		d.Tools.Replace = true
 	}
 
@@ -305,11 +307,12 @@ type accumulator struct {
 	tout     int64
 	cache    int64
 	activity map[string]int
+	hours    map[string]int
 	tools    map[string]int
 }
 
 func newAccumulator() *accumulator {
-	return &accumulator{activity: map[string]int{}, tools: map[string]int{}}
+	return &accumulator{activity: map[string]int{}, hours: map[string]int{}, tools: map[string]int{}}
 }
 
 // apply folds one JSONL record into the accumulator. full is true on a
@@ -409,7 +412,9 @@ func (a *accumulator) addDay(ms int64) {
 	if ms <= 0 {
 		return
 	}
-	a.activity[time.UnixMilli(ms).Local().Format("2006-01-02")]++
+	t := time.UnixMilli(ms).Local()
+	a.activity[t.Format("2006-01-02")]++
+	a.hours[t.Format("2006-01-02 15")]++
 }
 
 func (h *header) merge(other header) {

@@ -37,9 +37,10 @@ type Amount struct {
 	Value   float64
 }
 
-// Histogram is a count per key (a local day for activity, a normalized tool
-// name for tool use). Replace means the map is the complete picture for the
-// resource; otherwise the counts are merged into it.
+// Histogram is a count per key (a local day for activity, a local "day hour"
+// such as "2026-10-20 14" for hours, a normalized tool name for tool use).
+// Replace means the map is the complete picture for the resource; otherwise the
+// counts are merged into it.
 type Histogram struct {
 	Replace bool
 	Counts  map[string]int
@@ -68,6 +69,7 @@ type Delta struct {
 	Tokens   Usage
 	Cost     Amount
 	Activity Histogram
+	Hours    Histogram // local "day hour" ("2026-10-20 14"), for today's rhythm chart
 	Tools    Histogram
 
 	// ParentID links this session to the session it continues (resume/fork).

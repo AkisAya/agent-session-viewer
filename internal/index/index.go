@@ -43,6 +43,19 @@ type ScanStatus struct {
 	LastError string    `json:"lastError,omitempty"`
 }
 
+// activityHourSchema is split out so the migration can recreate the table:
+// v12 added the day column, which CREATE TABLE IF NOT EXISTS cannot alter.
+const activityHourSchema = `
+CREATE TABLE IF NOT EXISTS activity_hour (
+  agent TEXT NOT NULL,
+  id    TEXT NOT NULL,
+  src   TEXT NOT NULL,
+  day   TEXT NOT NULL,
+  hour  INTEGER NOT NULL,
+  msgs  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (agent, id, src, day, hour)
+);`
+
 const schema = `
 CREATE TABLE IF NOT EXISTS session (
   agent       TEXT NOT NULL,
@@ -118,7 +131,7 @@ CREATE TABLE IF NOT EXISTS session_usage (
   PRIMARY KEY (agent, id, src)
 );
 CREATE INDEX IF NOT EXISTS session_usage_src_idx ON session_usage(agent, src);
-`
+` + activityHourSchema
 
 // Options configures how the cache is stored.
 type Options struct {
@@ -175,14 +188,19 @@ func Open(opts Options, sources ...source.Source) (*Index, error) {
 	// v7: session_source membership table; v8: per-source usage table
 	// (session totals are summed from their resources); v9: Claude usage
 	// deduped per message id, Codex input excludes cached tokens; v10:
-	// per-session compaction count, Claude input includes cache writes.
-	const schemaVersion = "10"
+	// per-session compaction count, Claude input includes cache writes;
+	// v11: per-hour activity histogram for the work-rhythm chart;
+	// v12: per-day hour histogram, so "today by hour" can be scoped.
+	const schemaVersion = "12"
 	var ver string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&ver)
 	if ver != schemaVersion {
 		_, _ = db.Exec(`DELETE FROM cursor`)
 		_, _ = db.Exec(`DELETE FROM session`)
 		_, _ = db.Exec(`DELETE FROM activity`)
+		// The v12 shape adds a column, so drop and recreate this table.
+		_, _ = db.Exec(`DROP TABLE IF EXISTS activity_hour`)
+		_, _ = db.Exec(activityHourSchema)
 		_, _ = db.Exec(`DELETE FROM tool_use`)
 		_, _ = db.Exec(`DELETE FROM session_usage`)
 		_, _ = db.Exec(`INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)`, schemaVersion)
@@ -360,7 +378,7 @@ func (ix *Index) scanSource(src source.Source) error {
 		return err
 	}
 	// Histograms of disappeared source files would otherwise leak forever.
-	for _, table := range []string{"activity", "tool_use"} {
+	for _, table := range []string{"activity", "activity_hour", "tool_use"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE agent = ?`+inSrc, keys...); err != nil {
 			return err
 		}
