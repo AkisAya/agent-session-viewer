@@ -1,0 +1,35 @@
+docs/DESIGN.md
+  s_98a799f89dc9df::t_88421cd24771ae 9
+internal/source/claude/claude.go
+  s_98a799f89dc9df::t_df8edcafce3ffd 104-118
+  s_98a799f89dc9df::t_8efa89d2bae968 251
+  s_98a799f89dc9df::t_ba45565583d73e 368-370,376
+  s_98a799f89dc9df::t_c453d798eef192 178-180
+  s_98a799f89dc9df::t_b7e63c310eeb31 88-95
+  s_98a799f89dc9df::t_a7d4db237d0e6b 310-323
+  s_98a799f89dc9df::t_59928bf025b7e2 175
+  s_98a799f89dc9df::t_80d37ca462caa0 263-271
+  s_98a799f89dc9df::t_a1b0de59912913 146-148
+  s_98a799f89dc9df::t_a03f24d5266fb9 462-466
+  s_98a799f89dc9df::t_77e8cbf0127459 69-71
+CHANGELOG.md
+  s_98a799f89dc9df::t_9e4e2cee89d01c 40
+internal/source/claude/claude_test.go
+  s_98a799f89dc9df::t_fa2dd7df3b6f84 148-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.50-trip",
+  "base_commit_sha": "8c22bb57a43b8509c6f263851b6757f23fd7230e",
+  "prompts": {},
+  "sessions": {
+    "s_98a799f89dc9df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea7c50bf8ffewmSSX2qXYpw1MU",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
