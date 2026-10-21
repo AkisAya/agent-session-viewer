@@ -1,0 +1,23 @@
+scripts/screenshots.mjs
+  s_2fe12afd7b398b::t_372efba1d4300f 232-233,239
+README.md
+  s_2fe12afd7b398b::t_33657afc1e03db 46-47,50,52
+  s_2fe12afd7b398b::t_d3c7d35f98839e 23,25
+  s_2fe12afd7b398b::t_4756f9acc3906b 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "908d27ccdea11fde6a7a1a991208d151e2527592",
+  "prompts": {},
+  "sessions": {
+    "s_2fe12afd7b398b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea2a318c6ffeCU14JAqxAY46ht",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
