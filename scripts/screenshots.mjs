@@ -229,13 +229,15 @@ try {
   await open("/");
   await shot("list.webp");
 
-  // Tall viewport so the whole dashboard renders, then crop to its content.
+  // Full dashboard (tall) for the click-through, plus a viewport-sized
+  // dashboard-thumb.webp that matches the other two so the README grid lines up.
   await viewport(2200);
   await open("/?view=dash");
   const r = await ev(`Math.ceil(document.getElementById("dash").getBoundingClientRect().bottom + 16)`);
   await shot("dashboard.webp", Math.min(2200, r.result.value));
-
   await viewport(800);
+  await shot("dashboard-thumb.webp");
+
   await open("/");
   await ev(`document.querySelector('.card[data-id="${DEMO_ID}"]').click()`);
   await sleep(1500);
