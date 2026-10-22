@@ -1,0 +1,44 @@
+internal/api/server.go
+  s_339d3401ee9863::t_7a8efc5288865a 77-84
+web/list.js
+  s_339d3401ee9863::t_14b0f2bc5942bd 63
+  s_339d3401ee9863::t_06bab94686c052 184
+  s_339d3401ee9863::t_07060bf3b9122a 174-177
+CHANGELOG.md
+  s_339d3401ee9863::t_46858d37d64988 9-12
+web/smoke.mjs
+  s_339d3401ee9863::t_f35d84e6cdab58 133
+  s_339d3401ee9863::t_5e475b15fb4471 100,102
+  s_339d3401ee9863::t_f937b8a10f505d 169,174-178
+internal/index/index_test.go
+  s_339d3401ee9863::t_61c5541296ffa1 243-280
+web/app.js
+  s_339d3401ee9863::t_53e032b3577a9c 407
+  s_339d3401ee9863::t_c8f011314c2344 92
+internal/index/query.go
+  s_339d3401ee9863::t_1ca35b39ebecec 22-24,27-30
+  s_339d3401ee9863::t_858282e889dcd9 222
+  s_339d3401ee9863::t_b487f3e292be54 101
+  s_339d3401ee9863::t_c991b096fb9e49 242,244
+  s_339d3401ee9863::t_065a4a6e4a08bc 48-50
+  s_339d3401ee9863::t_8497f4ab351f0a 200
+docs/DESIGN.md
+  s_339d3401ee9863::t_abb4027683235a 18
+  s_339d3401ee9863::t_573fcf8a542838 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "c1e54f7361cf46e83ff7b7d2b35a30aa3f26f994",
+  "prompts": {},
+  "sessions": {
+    "s_339d3401ee9863": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e9c847b65ffeB8vk7ufyGLE7xF",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
