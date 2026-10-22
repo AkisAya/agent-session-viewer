@@ -97,7 +97,9 @@ const transcript = [
   { role: "compact", text: "## Summary\nearlier work", timestamp: "2026-01-02T08:59:00Z" },
   { role: "user", text: "one more", timestamp: "2026-01-02T09:00:00Z" },
 ];
+const requests = [];
 globalThis.fetch = async (url) => {
+  requests.push(String(url));
   const p = String(url).split("?")[0];
   if (p.startsWith("/api/sessions/")) return { ok: true, status: 200, json: async () => transcript };
   if (!(p in shapes)) throw new Error("unexpected fetch: " + url);
@@ -128,7 +130,7 @@ console.log("ok: module graph evaluated and boot path ran");
 
 const { state, setTags, tagsOf } = await mod("state.js");
 const { hl, displayTitle, shortPath } = await mod("util.js");
-const { renderList } = await mod("list.js");
+const { renderList, loadSessions } = await mod("list.js");
 const detail = await mod("detail.js");
 const dash = await mod("dashboard.js");
 
@@ -164,10 +166,16 @@ renderList([
 ]);
 const listHTML = cache.get("list").innerHTML;
 assert(listHTML.includes('data-id="s1"'), "renderList renders the parent card");
-assert(!listHTML.includes('data-id="s2"'), "renderList hides subagent cards");
+assert(listHTML.includes('data-id="s2"'), "renderList renders every row the server returned");
 assert(listHTML.includes("subagent ×2"), "renderList counts children from the relations, not just the rows");
 assert(listHTML.includes("compact ×2"), "renderList shows the compaction count");
 assert(listHTML.includes("card-cwd-copy"), "renderList offers a copy-directory action");
+
+// Subagents are filtered server-side, so the toggle has to reach the request.
+state.showSubagents = true;
+await loadSessions();
+assert(requests.some((u) => u.includes("subagents=1")), "show-subagents asks the server for subagent rows");
+state.showSubagents = false;
 
 /* ---------- table view + pagination ---------- */
 state.tags["claude|s1"] = ["demo"];

@@ -74,13 +74,14 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	page, err := s.ix.SessionPage(index.Filter{
-		Agent:  q.Get("agent"),
-		CWD:    q.Get("cwd"),
-		Query:  q.Get("q"),
-		Day:    q.Get("day"),
-		Sort:   q.Get("sort"),
-		Limit:  limit,
-		Offset: offset,
+		Agent:     q.Get("agent"),
+		CWD:       q.Get("cwd"),
+		Query:     q.Get("q"),
+		Day:       q.Get("day"),
+		Sort:      q.Get("sort"),
+		Limit:     limit,
+		Offset:    offset,
+		Subagents: q.Get("subagents") == "1",
 	})
 	if err != nil {
 		writeErr(w, err)

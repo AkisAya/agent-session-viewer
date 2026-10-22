@@ -89,7 +89,7 @@ $("view-mode").addEventListener("click", (e) => {
 $("show-subagents").addEventListener("change", (e) => {
   state.showSubagents = e.target.checked;
   store.set("as-subagents", state.showSubagents);
-  renderList(state.sessions);
+  loadSessions();
 });
 
 /* dashboard controls */
@@ -404,6 +404,7 @@ async function exportAllCSV() {
   if (state.cwd) base.set("cwd", state.cwd);
   if (state.q) base.set("q", state.q);
   if (state.day) base.set("day", state.day);
+  if (state.showSubagents) base.set("subagents", "1");
   base.set("sort", state.sort);
   // shortcut: capped at 10k rows; stream the export if larger libraries matter.
   const all = [];

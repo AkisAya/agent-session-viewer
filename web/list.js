@@ -60,6 +60,7 @@ export async function loadSessions(reset = true, opts = {}) {
   if (state.cwd) p.set("cwd", state.cwd);
   if (state.q) p.set("q", state.q);
   if (state.day) p.set("day", state.day);
+  if (state.showSubagents) p.set("subagents", "1");
   p.set("sort", state.sort);
   p.set("limit", String(quiet ? Math.min(1000, Math.max(state.pageSize, keepCount)) : state.pageSize));
   p.set("offset", String(reset ? 0 : state.sessions.length));
@@ -170,16 +171,17 @@ function tableHTML(rows) {
 
 export function renderList(rows) {
   rows = rows || [];
-  // Subagent sessions are hidden by default; the parent card carries a count
-  // tag counted from the unscoped relations, so a filter that leaves the child
-  // out of `rows` does not hide the parent's badge.
+  // Subagent sessions stay out of the list unless the toggle asked the server
+  // for them; the parent card carries a count tag instead. That count comes
+  // from the unscoped relations, so a filter that leaves the child out of
+  // `rows` does not hide the parent's badge.
   const subCount = new Map();
   for (const s of state.relations) {
     if (s.relation !== "subagent") continue;
     const pk = sessionKey(s.agent, s.parentId);
     subCount.set(pk, (subCount.get(pk) || 0) + 1);
   }
-  const all = rows.filter((s) => state.showSubagents || s.relation !== "subagent");
+  const all = rows;
   if (!all.length) {
     if (state.scan === null || (state.scan && state.scan.scanning)) {
       showEmpty("正在加载会话…", "首次启动或扫描中需要一点时间，完成后会自动刷新");

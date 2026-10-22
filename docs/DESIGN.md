@@ -15,7 +15,7 @@
 
 - **增量索引**：缓存数据库（SQLite）为每个源文件记录 `size` / `mtime` / 解析偏移量。文件未变化时整文件跳过；有追加时只解析新增字节并累加统计。
 - **启动即服务**：HTTP 监听先启动，首次索引在后台进行；`StartScan` 会在监听前同步置位 `scanning`，所以首次打开页面看到的是「正在加载/扫描中」而不是空列表。`/api/scan` 暴露扫描进度与上次错误。单个数据源失败不会中止其他来源，`lastScan` 只在全部来源成功时更新。
-- **列表分页**：`/api/sessions` 返回 `{sessions,total,limit,offset}`，默认每页 100（上限 1000），前端按页追加；支持 `updated / created / messages / tokens / cost / compacts` 排序。
+- **列表分页**：`/api/sessions` 返回 `{sessions,total,limit,offset}`，默认每页 100（上限 1000），前端按页追加；支持 `updated / created / messages / tokens / cost / compacts` 排序。子代理转录只在 `subagents=1` 时作为独立行返回，默认隐藏且不计入任何会话数（父会话卡片用「subagent ×N」标记）。
 - **正文按需 + 分块渲染**：列表只读缓存，对话内容在点击会话时才读取。详情默认不渲染 reasoning / tool / system，可见消息按 120 条一块追加，Markdown 只在块真正落盘时解析；滚动大纲使用缓存偏移和二分查找，避免长会话卡顿。
 - **可分享的浏览状态**：`agent / cwd / day / sort / view / session` 写入查询串；筛选、切换视图、打开/关闭详情使用 `pushState`，浏览器前进/后退可恢复，详情可直接分享。
 - **本地个人化**：收藏、标签、主题、卡片/表格、宽屏/字号、自动刷新开关等偏好保存在 localStorage，不写入索引，也不上传。
@@ -63,7 +63,7 @@ scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并
 | GET | `/api/scan` | 当前扫描状态：`scanning`、`source`、`done`/`total`、`lastScan`、`lastError` |
 | GET | `/api/stats?agent=&cwd=&day=` | 会话数 / 消息数 / Token / 花费汇总；`agents` 为按目录统计的各 agent 分布（供标签页），`total` 随 agent + 目录 + 日期筛选 |
 | GET | `/api/projects?agent=` | 按工作目录聚合的会话数 / 消息数 / Token / 花费 / 各 agent 分布，按会话数降序 |
-| GET | `/api/sessions?agent=&cwd=&q=&day=&sort=&limit=&offset=` | 会话概览分页；返回 `{sessions,total,limit,offset}`，每行含 `toolCount`（该会话的工具调用次数）；`sort` 支持 `updated` / `created` / `messages` / `tokens` / `cost` / `compacts`；`day` 只返回该本地日期有活动的会话 |
+| GET | `/api/sessions?agent=&cwd=&q=&day=&sort=&limit=&offset=&subagents=` | 会话概览分页；返回 `{sessions,total,limit,offset}`，每行含 `toolCount`（该会话的工具调用次数）；`sort` 支持 `updated` / `created` / `messages` / `tokens` / `cost` / `compacts`；`day` 只返回该本地日期有活动的会话；`subagents=1` 时把子代理会话也作为独立行返回 |
 | GET | `/api/sessions/{agent}/{id}` | 单个会话的完整对话；id 仅接受 `[A-Za-z0-9._-]` |
 | GET | `/api/sessions/{agent}/{id}/meta` | 单个会话的缓存概要；供深链在筛选结果之外打开会话 |
 | GET | `/api/activity?agent=&cwd=` | 按本地日期聚合的消息数与会话数（仅 API；看板热力图改用 `/api/trend`） |

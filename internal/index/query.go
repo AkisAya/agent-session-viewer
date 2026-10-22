@@ -19,7 +19,15 @@ type Filter struct {
 	Sort   string // "updated" (default) | "created" | "messages" | "tokens" | "cost"
 	Limit  int
 	Offset int
+	// Subagents lists subagent child sessions as rows of their own. They stay
+	// hidden by default: the parent carries a "subagent ×N" tag instead.
+	Subagents bool
 }
+
+// mainSessions counts top-level sessions. A subagent transcript is its
+// parent's own work split into a separate file, so it never counts as a
+// session of its own in totals.
+const mainSessions = `count(CASE WHEN s.relation <> 'subagent' THEN 1 END)`
 
 // SessionPage is one page of session summaries plus the unpaged total.
 type SessionPage struct {
@@ -36,6 +44,9 @@ func sessionWhere(f Filter) (string, []any) {
 	if f.Agent != "" {
 		where = append(where, "agent = ?")
 		args = append(args, f.Agent)
+	}
+	if !f.Subagents {
+		where = append(where, "relation <> 'subagent'")
 	}
 	switch f.CWD {
 	case "":
@@ -87,7 +98,7 @@ func orderClause(sort string) string {
 // Sessions returns cached session summaries (kept for callers that do not page).
 func (ix *Index) Sessions(f Filter) ([]model.Session, error) {
 	page, err := ix.SessionPage(Filter{Agent: f.Agent, CWD: f.CWD, Query: f.Query, Day: f.Day,
-		Sort: f.Sort, Limit: f.Limit, Offset: f.Offset})
+		Sort: f.Sort, Limit: f.Limit, Offset: f.Offset, Subagents: f.Subagents})
 	return page.Sessions, err
 }
 
@@ -186,7 +197,7 @@ func (ix *Index) Stats(agent, cwd, day string) (model.Stats, error) {
 	where, args := scopeWhere("", cwd)
 	where += dayCond
 	args = append(args, hArgs...)
-	rows, err := ix.db.Query(`SELECT agent, count(*), COALESCE(sum(msg_count),0),
+	rows, err := ix.db.Query(`SELECT agent, `+mainSessions+`, COALESCE(sum(msg_count),0),
 		COALESCE(sum(tokens_in),0), COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0), COALESCE(sum(cost),0)
 		FROM session s WHERE `+where+` GROUP BY agent ORDER BY agent`, args...)
 	if err != nil {
@@ -208,7 +219,7 @@ func (ix *Index) Stats(agent, cwd, day string) (model.Stats, error) {
 	tw += dayCond
 	targs = append(targs, hArgs...)
 	var t model.AgentStat
-	if err := ix.db.QueryRow(`SELECT count(*), COALESCE(sum(msg_count),0),
+	if err := ix.db.QueryRow(`SELECT `+mainSessions+`, COALESCE(sum(msg_count),0),
 		COALESCE(sum(tokens_in),0), COALESCE(sum(tokens_out),0), COALESCE(sum(cache_read),0), COALESCE(sum(cost),0)
 		FROM session s WHERE `+tw, targs...).Scan(
 		&t.Sessions, &t.Messages, &t.TokensIn, &t.TokensOut, &t.CacheRead, &t.Cost); err != nil {
@@ -228,9 +239,9 @@ func (ix *Index) Projects(agent string) ([]model.Project, error) {
 		where = "agent = ?"
 		args = append(args, agent)
 	}
-	rows, err := ix.db.Query(`SELECT cwd, agent, count(*), COALESCE(sum(msg_count),0),
+	rows, err := ix.db.Query(`SELECT cwd, agent, `+mainSessions+`, COALESCE(sum(msg_count),0),
 		COALESCE(sum(tokens_in+tokens_out+cache_read),0), COALESCE(sum(cost),0), max(updated_at)
-		FROM session WHERE `+where+` GROUP BY cwd, agent`, args...)
+		FROM session s WHERE `+where+` GROUP BY cwd, agent`, args...)
 	if err != nil {
 		return nil, err
 	}

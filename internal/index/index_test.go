@@ -240,6 +240,44 @@ func TestSessionPageAndCostSort(t *testing.T) {
 	}
 }
 
+func TestSubagentNotCountedAsSession(t *testing.T) {
+	ix := openTest(t)
+	insertSession(t, ix, "claude", "root", "/tmp/p", "", "")
+	insertSession(t, ix, "claude", "agent-kid", "/tmp/p", "root", "subagent")
+
+	st, err := ix.Stats("", "", "")
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if st.Total.Sessions != 1 || len(st.Agents) != 1 || st.Agents[0].Sessions != 1 {
+		t.Fatalf("stats = %+v, want 1 main session", st)
+	}
+
+	projects, err := ix.Projects("claude")
+	if err != nil {
+		t.Fatalf("projects: %v", err)
+	}
+	if len(projects) != 1 || projects[0].Count != 1 || projects[0].Agents["claude"] != 1 {
+		t.Fatalf("projects = %+v, want 1 session in /tmp/p", projects)
+	}
+
+	page, err := ix.SessionPage(Filter{})
+	if err != nil {
+		t.Fatalf("page: %v", err)
+	}
+	if page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "root" {
+		t.Fatalf("page = %+v, want only the main session", page)
+	}
+
+	withSubs, err := ix.SessionPage(Filter{Subagents: true})
+	if err != nil {
+		t.Fatalf("page with subagents: %v", err)
+	}
+	if withSubs.Total != 2 || len(withSubs.Sessions) != 2 {
+		t.Fatalf("page with subagents = %+v, want both rows", withSubs)
+	}
+}
+
 func TestSessionPageIncludesToolCount(t *testing.T) {
 	ix := openTest(t)
 	insertSession(t, ix, "claude", "s1", "/tmp/p", "", "")
