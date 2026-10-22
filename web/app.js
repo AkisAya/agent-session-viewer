@@ -383,7 +383,8 @@ function setRefreshBusy(busy) {
   const btn = $("refresh");
   if (!btn) return;
   btn.disabled = busy;
-  btn.textContent = busy ? "扫描中…" : "刷新";
+  btn.classList.toggle("busy", busy);
+  btn.title = busy ? "正在扫描…" : "重新扫描";
 }
 
 async function refreshData() {
@@ -527,14 +528,8 @@ function setAutoRefresh(on, immediate) {
 $("auto-refresh").addEventListener("click", () => setAutoRefresh(!state.autoRefresh, true));
 
 /* theme */
-$("theme-switch").addEventListener("click", (e) => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  setTheme(b.dataset.pref);
-});
-
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (state.theme === "auto") applyTheme();
+$("theme-toggle").addEventListener("click", () => {
+  setTheme(state.theme === "dark" ? "light" : "dark");
 });
 
 /* ---------- url / history ---------- */
@@ -590,9 +585,6 @@ async function applyURLState() {
 window.addEventListener("popstate", () => {
   applyURLState();
 });
-
-// Keep the relative "更新于…" label honest without refetching.
-setInterval(renderScanTime, 60000);
 
 let versionLoaded = false;
 function loadVersion() {

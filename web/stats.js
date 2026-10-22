@@ -1,6 +1,6 @@
 // stats.js — the top-bar totals, agent tabs and scan status.
 
-import { $, esc, fmtNum, fmtTime, fmtDate, TAB_LABEL, notify } from "./util.js";
+import { $, esc, fmtNum, fmtDate, fmtClock, TAB_LABEL, notify } from "./util.js";
 import { state } from "./state.js";
 import { api, scopeParams } from "./api.js";
 import { renderAgentCompare, renderKPI, cacheRate } from "./dashboard.js";
@@ -66,7 +66,7 @@ export function renderScanTime() {
     el.title = "";
     return;
   }
-  el.textContent = "更新于 " + fmtTime(last);
+  el.textContent = "更新于 " + fmtClock(new Date(last));
   el.title = "上次扫描：" + fmtDate(last);
 }
 

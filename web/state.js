@@ -19,7 +19,7 @@ export const state = {
   total: 0,
   pageSize: 100,
   allLoaded: false,
-  theme: "auto",
+  theme: "light",
   noise: store.get("as-noise", false),
   lastScan: "",
   scan: null,
@@ -100,7 +100,7 @@ export function setTags(agent, id, tags) {
 /* ---------- theme ---------- */
 const THEME_KEY = "as-theme";
 try {
-  state.theme = localStorage.getItem(THEME_KEY) || "auto";
+  state.theme = localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
 } catch (e) {}
 
 export function setTheme(pref) {
@@ -112,10 +112,14 @@ export function setTheme(pref) {
 }
 
 export function applyTheme() {
-  const pref = state.theme;
-  const dark = pref === "dark" || (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark = state.theme === "dark";
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-  document.querySelectorAll("#theme-switch button").forEach((b) => b.classList.toggle("active", b.dataset.pref === pref));
+  const btn = document.getElementById("theme-toggle");
+  if (btn) {
+    const label = dark ? "切换到浅色模式" : "切换到深色模式";
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  }
 }
 
 /* ---------- url state ---------- */

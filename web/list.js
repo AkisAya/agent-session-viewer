@@ -192,7 +192,7 @@ export function renderList(rows) {
     if (state.day) filters.push("日期");
     const hint = filters.length
       ? `当前有 ${filters.join(" / ")} 筛选，试试清除`
-      : "点击右上角「刷新」重新扫描";
+      : "点击右上角的刷新图标重新扫描";
     const clear = filters.length ? `<button type="button" class="btn" data-clear-all>清除筛选</button>` : "";
     showEmpty("没有匹配的会话", hint, true, clear);
     return;

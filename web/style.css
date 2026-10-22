@@ -1,5 +1,6 @@
 :root,
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0f1115;
   --panel: #171a21;
   --panel-2: #1e222b;
@@ -20,6 +21,7 @@
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
   --bg: #f4f5f7;
   --panel: #ffffff;
   --panel-2: #eceef2;
@@ -98,27 +100,33 @@ body {
 }
 .btn:hover { border-color: var(--accent); }
 
-.theme-switch {
+.icon-btn-toggle {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex: 0 0 auto;
   background: var(--panel-2);
+  color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-  flex: 0 0 auto;
-}
-.theme-switch button {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 6px;
   cursor: pointer;
-  white-space: nowrap;
 }
-.theme-switch button:hover { color: var(--fg); }
-.theme-switch button.active { background: color-mix(in srgb, var(--accent) 15%, var(--panel-2)); color: var(--accent); }
+.icon-btn-toggle:hover { color: var(--fg); border-color: var(--accent); }
+.icon-btn-toggle:disabled { opacity: .55; cursor: default; }
+.icon-btn-toggle svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-btn-toggle.busy svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#theme-toggle .ico-sun { display: none; }
+:root[data-theme="light"] #theme-toggle .ico-sun { display: block; }
+:root[data-theme="light"] #theme-toggle .ico-moon { display: none; }
 
 /* ---------- toolbar ---------- */
 .toolbar {
@@ -428,7 +436,6 @@ mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; paddi
   .sort { margin-left: 0; }
   .topbar { gap: 8px; padding: 0 12px; }
   .brand { font-size: 13px; }
-  .theme-switch button { padding: 5px 8px; }
   .btn { padding: 7px 11px; }
   .toolbar { padding: 12px 14px; }
   .layout main { padding: 0 14px 50px; }
