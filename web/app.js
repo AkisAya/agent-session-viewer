@@ -5,7 +5,7 @@
 // is no build step. Feature modules own their own rendering (list, dashboard,
 // projects, stats, detail) and share `state` from state.js.
 
-import { $, esc, debounce, notify, toCSV, download, store, copyText } from "./util.js";
+import { $, esc, debounce, notify, toCSV, download, store, copyText, fmtVersion } from "./util.js";
 import { state, readURL, writeURL, applyTheme, setTheme, findSession, toggleStar } from "./state.js";
 import { api, scopeParams } from "./api.js";
 import { loadStats, renderScanTime } from "./stats.js";
@@ -595,8 +595,10 @@ function loadVersion() {
   api
     .version()
     .then((d) => {
-      const v = d && d.version && d.version !== "dev" ? "v" + String(d.version).replace(/^v/, "") : "";
-      if (v) $("version").textContent = v;
+      const full = (d && d.version) || "dev";
+      const el = $("version");
+      el.textContent = fmtVersion(full);
+      el.title = full === "dev" ? "版本未知（源码构建时没有版本控制信息）" : "版本 " + full;
     })
     .catch(() => {});
 }

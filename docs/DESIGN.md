@@ -61,7 +61,7 @@ scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/version` | 返回二进制版本（`dev` 表示未注入版本号） |
+| GET | `/api/version` | 返回二进制版本：发布构建为 `-ldflags` 注入的 tag；源码构建回退到 Go 写入二进制的模块版本（在 tag 上为 `v0.7.0`，tag 之间为伪版本，有未提交修改时带 `+dirty`）；都没有（如 `-buildvcs=false`）时为 `dev`。顶栏把伪版本缩写为 `v0.7.1-dev (提交号)`，完整值见悬停提示 |
 | GET | `/api/scan` | 当前扫描状态：`scanning`、`source`、`done`/`total`、`lastScan`、`lastError` |
 | GET | `/api/stats?agent=&cwd=&day=` | 会话数 / 消息数 / Token / 花费汇总；`agents` 为按目录统计的各 agent 分布（供标签页），`total` 随 agent + 目录 + 日期筛选 |
 | GET | `/api/projects?agent=` | 按工作目录聚合的会话数 / 消息数 / Token / 花费 / 各 agent 分布，按会话数降序 |

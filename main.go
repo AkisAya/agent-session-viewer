@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 	"time"
@@ -30,6 +31,20 @@ import (
 
 // version is overridden at build time with -ldflags "-X main.version=...".
 var version = "dev"
+
+// binaryVersion is the version this binary reports: the -ldflags value of a
+// release build, else the module version the go command stamps into a source
+// build (v0.7.0 on a tagged commit, a pseudo-version between tags, a "+dirty"
+// suffix with uncommitted changes), else "dev".
+func binaryVersion(ldflags string, info *debug.BuildInfo, ok bool) string {
+	if ldflags != "" && ldflags != "dev" {
+		return ldflags
+	}
+	if ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
 
 func main() {
 	var (
@@ -50,8 +65,10 @@ func main() {
 	flag.BoolVar(&cfg.Open, "open", false, "open the UI in the default browser after the server starts")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
+	info, ok := debug.ReadBuildInfo()
+	ver := binaryVersion(version, info, ok)
 	if showVersion {
-		fmt.Println("asv " + version)
+		fmt.Println("asv " + ver)
 		return
 	}
 	cfg.Resolve()
@@ -119,7 +136,7 @@ func main() {
 		}()
 	}
 
-	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS, version)}
+	srv := &http.Server{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Handler: api.New(ix, web.FS, ver)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

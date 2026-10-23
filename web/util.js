@@ -120,6 +120,17 @@ export function dayLabel(key) {
   return key.slice(5);
 }
 
+// fmtVersion shortens a binary version for the top bar. A source build between
+// tags reports a Go pseudo-version (v0.7.1-0.20261023093836-e2b24a911967),
+// shown as "v0.7.1-dev (e2b24a9)"; everything else is shown as is.
+export function fmtVersion(v) {
+  v = String(v || "dev");
+  if (/^\d/.test(v)) v = "v" + v;
+  const m = /^(.*?)[-.](?:0\.)?\d{14}-([0-9a-f]{12})(\+dirty)?$/.exec(v);
+  if (!m) return v;
+  return `${m[1]}-dev (${m[2].slice(0, 7)}${m[3] ? ", dirty" : ""})`;
+}
+
 /* ---------- session / path formatting ---------- */
 // displayTitle prefers a real title, then the first user-message preview.
 export function displayTitle(s) {

@@ -130,7 +130,8 @@ await new Promise((r) => setTimeout(r, 300)); // let the boot promise chain sett
 console.log("ok: module graph evaluated and boot path ran");
 
 const { state, setTags, tagsOf } = await mod("state.js");
-const { hl, displayTitle, shortPath } = await mod("util.js");
+const { hl, displayTitle, shortPath, fmtVersion } = await mod("util.js");
+assert(cache.get("version").textContent === "test", "the top bar shows the binary version");
 const { renderList, loadSessions } = await mod("list.js");
 const detail = await mod("detail.js");
 const dash = await mod("dashboard.js");
@@ -145,6 +146,18 @@ assert(hl("Hello World", "world") === "Hello <mark>World</mark>", "hl highlights
 assert(displayTitle({ title: "550e8400-e29b-41d4-a716-446655440000", preview: "first line\nsecond" }) === "first line", "displayTitle skips uuid titles");
 assert(shortPath("/a/b/c/d") === "c/d", "shortPath keeps the tail");
 assert(shortPath("C:\\Users\\me\\proj") === "me/proj", "shortPath accepts Windows separators");
+for (const [v, want] of [
+  ["v0.7.0", "v0.7.0"],
+  ["0.7.0", "v0.7.0"],
+  ["v0.7.1+dirty", "v0.7.1+dirty"],
+  ["dev", "dev"],
+  ["v0.7.1-0.20261023093836-e2b24a911967", "v0.7.1-dev (e2b24a9)"],
+  ["v0.7.1-0.20261023093836-e2b24a911967+dirty", "v0.7.1-dev (e2b24a9, dirty)"],
+  ["v0.8.0-rc.1.0.20261023093836-e2b24a911967", "v0.8.0-rc.1-dev (e2b24a9)"],
+  ["v0.0.0-20261023093836-e2b24a911967", "v0.0.0-dev (e2b24a9)"],
+]) {
+  assert(fmtVersion(v) === want, `fmtVersion(${v}) = ${fmtVersion(v)}, want ${want}`);
+}
 
 /* ---------- markdown edge cases ---------- */
 {
