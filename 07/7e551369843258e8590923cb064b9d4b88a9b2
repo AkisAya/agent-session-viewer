@@ -1,0 +1,120 @@
+internal/proc/start_darwin.go
+  s_35f70fb818a4c1::t_8a3e644b9714cc 1-25
+web/live.js
+  s_35f70fb818a4c1::t_30b7bff205e68d 99
+  s_35f70fb818a4c1::t_000ef33237b42c 13
+  s_35f70fb818a4c1::t_185ecfdb44a658 109
+  s_35f70fb818a4c1::t_51326e8a1f1ea5 63-89
+  s_35f70fb818a4c1::t_a1366dae6caac5 2
+  s_35f70fb818a4c1::t_43c3cd8a951ed9 9
+  s_35f70fb818a4c1::t_a35500f66c0e4f 15
+  s_35f70fb818a4c1::t_8a9dd0bd31d62e 3-8,10-12,14,17-51,53-62,90-98,100,102,104-108,110,113-145
+  s_35f70fb818a4c1::t_caa522483f63af 111-112
+  s_35f70fb818a4c1::t_a0927917a13f31 1,16,52,101,103
+internal/source/claude/live.go
+  s_35f70fb818a4c1::t_95c25d8283bd53 1-145
+web/smoke.mjs
+  s_35f70fb818a4c1::t_c30977499b0f09 90
+  s_35f70fb818a4c1::t_c18bfacc7869f8 216
+  s_35f70fb818a4c1::t_44aeff2ba2b2dd 199-202,204-208,212-215
+  s_35f70fb818a4c1::t_7b170473d1cea8 195-198,203,217-223,225-227
+  s_35f70fb818a4c1::t_50e9ce5940a497 209-211
+  s_35f70fb818a4c1::t_22f6b8e4e6fdd3 224
+CHANGELOG.md
+  s_35f70fb818a4c1::t_6cbc7e45f59458 9-10,12
+  s_35f70fb818a4c1::t_e79889c5b65d78 11
+internal/index/live_test.go
+  s_35f70fb818a4c1::t_881f88ebf1b79d 1-13,16,19-20,22,29,31-33,35-41,43-73,76-89
+  s_35f70fb818a4c1::t_945ac3e4d7e803 14-15,17-18,21,23-28,30
+  s_35f70fb818a4c1::t_f2a7930533dada 34,42,74-75
+main.go
+  s_35f70fb818a4c1::t_bd01bd12fee61c 69
+internal/config/config.go
+  s_35f70fb818a4c1::t_29c022cd1eb343 17
+  s_35f70fb818a4c1::t_81e72ea81e2a38 60-64
+internal/source/claude/live_test.go
+  s_35f70fb818a4c1::t_28cdf2fd1f83df 1-52,58-119
+  s_35f70fb818a4c1::t_fb71ed6ddd47e0 53-57
+docs/DESIGN.md
+  s_35f70fb818a4c1::t_ef00a49530d630 35
+  s_35f70fb818a4c1::t_a4e92639f0b0e6 85
+  s_35f70fb818a4c1::t_ab2f8488dac7dc 49-50,52
+  s_35f70fb818a4c1::t_39adf13887cb8b 76
+internal/proc/alive_unix.go
+  s_35f70fb818a4c1::t_86bd1c571feb65 1-19
+internal/api/server_test.go
+  s_35f70fb818a4c1::t_391589c474df63 40
+  s_35f70fb818a4c1::t_0681f2684a576c 176-189,191-192,195-222
+  s_35f70fb818a4c1::t_033b9af0e38ce5 190,193-194
+  s_35f70fb818a4c1::t_459bedba05ea0b 11
+  s_35f70fb818a4c1::t_0564e7c03bb4b1 22-27
+web/state.js
+  s_35f70fb818a4c1::t_114da7c6240c64 51-52
+  s_35f70fb818a4c1::t_83b087956e1c80 53
+internal/source/claude/claude.go
+  s_35f70fb818a4c1::t_59518bc2b9ee2d 20-22
+internal/proc/alive_other.go
+  s_35f70fb818a4c1::t_fcdbef665e8f5e 1-7
+internal/proc/start_other.go
+  s_35f70fb818a4c1::t_df02cec4cc2169 1-17
+README.md
+  s_35f70fb818a4c1::t_e06c2cd80dd6d6 99
+  s_35f70fb818a4c1::t_3f153c29051ce0 40
+  s_35f70fb818a4c1::t_dfb866a6df4a21 100
+  s_35f70fb818a4c1::t_e730e7045d1e1f 115
+internal/source/source.go
+  s_35f70fb818a4c1::t_149e1a32705a05 98-105
+internal/api/server.go
+  s_35f70fb818a4c1::t_89bb17ac8c61e3 40
+  s_35f70fb818a4c1::t_4a9fbc4ba3ef50 241-260
+go.mod
+  s_35f70fb818a4c1::t_5a374406d2b410 7
+internal/proc/proc.go
+  s_35f70fb818a4c1::t_1b843e125255a9 1-17
+internal/config/config_test.go
+  s_35f70fb818a4c1::t_811504eea01a9f 49-57
+  s_35f70fb818a4c1::t_8e035f142e8895 29
+web/index.html
+  s_35f70fb818a4c1::t_f7103e08955b5c 33
+internal/model/model.go
+  s_35f70fb818a4c1::t_ff10d8b9f88e80 32-48
+web/api.js
+  s_35f70fb818a4c1::t_d8b86b4553ca89 42
+internal/index/live.go
+  s_35f70fb818a4c1::t_bfdaa35184cc9e 1-85
+web/style.css
+  s_35f70fb818a4c1::t_0d7462327565bf 1210-1226,1237-1247
+  s_35f70fb818a4c1::t_4179cea1c10a2d 21-24
+  s_35f70fb818a4c1::t_0385d13f48eaaa 1227-1236
+  s_35f70fb818a4c1::t_fc20cf41a0969d 46-48
+internal/proc/alive_windows.go
+  s_35f70fb818a4c1::t_f26bd2ebffeeb2 1-7,10-33
+  s_35f70fb818a4c1::t_79368caee70ae7 8-9
+web/list.js
+  s_35f70fb818a4c1::t_fb7efb67c1b0c9 119
+  s_35f70fb818a4c1::t_0811bd98b7c434 155
+  s_35f70fb818a4c1::t_1c8d208ff36076 8
+web/app.js
+  s_35f70fb818a4c1::t_845c9dd268e294 621
+  s_35f70fb818a4c1::t_bfc767e3f9730c 16
+internal/proc/proc_test.go
+  s_35f70fb818a4c1::t_8b39fd31dca4ff 31-32
+  s_35f70fb818a4c1::t_4574254afbde19 1-8,10-13,20,25-28,35-42,44-75
+  s_35f70fb818a4c1::t_6901e6d04d5b0f 9,14-19,21-24,29-30,33-34,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "077e551369843258e8590923cb064b9d4b88a9b2",
+  "prompts": {},
+  "sessions": {
+    "s_35f70fb818a4c1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f32cff5-871f-4155-aff2-0e9431e4dd32",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "akisaya <akikevinsama@gmail.com>"
+    }
+  }
+}
