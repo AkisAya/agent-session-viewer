@@ -95,3 +95,11 @@ type Source interface {
 	// and must fall back to a search when they are missing or stale.
 	Transcript(id string, hints []string) ([]model.Message, error)
 }
+
+// Live is implemented by sources that can tell which of their sessions have a
+// running agent process. It reads the agent's own status files on every call
+// and must stay cheap (a poll runs every few seconds); a missing status
+// directory means "nothing running", not an error.
+type Live interface {
+	Live() ([]model.LiveSession, error)
+}

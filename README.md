@@ -37,6 +37,7 @@
 - **概览**：会话列表按 agent / 项目筛选，分页、卡片 / 表格两种密度、收藏与本地标签。
 - **详情**：对话详情支持 Markdown 渲染、查找、跳转用户消息、消息大纲、宽屏 / 字号；子代理、分叉与续接关系可互相跳转。
 - **看板**：KPI、活动热力图、趋势、Top 会话、工作节奏、模型 / 工具排行与可排序对比表；Codex / DSH 等没有记录花费的来源按参考单价显示「≈」估算。
+- **运行状态**：agent 进程还在运行的会话，卡片和表格行上会显示状态标签：运行中、待处理（在等你确认）、等待输入；顶栏同时显示三类的数量。目前支持 Claude Code。
 - **轻量**：单个 Go 二进制，前端内嵌；增量索引只扫新增内容，二次启动几乎瞬时，空闲低占用。顶栏「自动刷新」或 `-watch-interval` 可让索引 / 页面保持更新（通常二选一）。
 
 所有源文件都以只读方式打开，不影响正在运行的 agent；HTTP 默认只绑定 `127.0.0.1`。它是一个本地工具，不是云端服务——没有账号，没有同步。
@@ -95,6 +96,8 @@ asv -rebuild   # 删除缓存并全量重建（索引口径变更或缓存损坏
 
 会话标题、模型、Token、花费、工具调用与每日活动都从上述文件解析；子代理、分叉和续接关系也会自动识别并互相跳转。解析细节见 [设计说明](docs/DESIGN.md)。
 
+运行状态读取 Claude Code 为每个运行中进程写的 `~/.claude/sessions/<pid>.json`（与 `projects/` 同级，跟随 `-claude-dir`），不进索引、不触发扫描，页面打开时每 5 秒刷新一次。
+
 四个 agent 的历史路径在各平台一致：
 - Windows 上 `~` 即 `%USERPROFILE%`
 - OpenCode 也沿用 Unix 风格的 `~/.local/share/opencode`
@@ -109,7 +112,7 @@ asv -rebuild   # 删除缓存并全量重建（索引口径变更或缓存损坏
 -host string           HTTP 绑定地址（默认 127.0.0.1；设为 0.0.0.0 才对外网开放）
 -port int              HTTP 端口（默认 8787）
 -db string             缓存数据库路径（默认 ~/.local/share/agent-session-viewer/index.db；Windows 下为 %LOCALAPPDATA%\agent-session-viewer\index.db；-memory 时忽略）
--claude-dir string     Claude projects 目录
+-claude-dir string     Claude projects 目录（同级的 sessions/ 提供运行状态）
 -codex-dir string      Codex sessions 目录
 -codex-index string    Codex session_index.jsonl 路径
 -opencode-db string    OpenCode 数据库路径

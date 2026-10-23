@@ -37,6 +37,7 @@ func New(ix *index.Index, web fs.FS, version string) http.Handler {
 	mux.HandleFunc("GET /api/models", s.handleModels)
 	mux.HandleFunc("GET /api/tools", s.handleTools)
 	mux.HandleFunc("GET /api/relations", s.handleRelations)
+	mux.HandleFunc("GET /api/live", s.handleLive)
 	mux.HandleFunc("POST /api/rescan", s.handleRescan)
 	mux.HandleFunc("GET /api/sessions/{agent}/{id}/meta", s.handleSessionMeta)
 	mux.HandleFunc("GET /api/sessions/{agent}/{id}", s.handleTranscript)
@@ -235,6 +236,26 @@ func (s *Server) handleRelations(w http.ResponseWriter, r *http.Request) {
 		sessions = []model.Session{}
 	}
 	writeJSON(w, sessions)
+}
+
+// handleLive reports the sessions with a running agent process. It reads the
+// agents' status files on every request, so the frontend can poll it; a source
+// that fails to read is reported in "error" next to the rows that were read.
+func (s *Server) handleLive(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.ix.Live()
+	// Rows must be openable through the transcript endpoints.
+	sessions := make([]model.LiveSession, 0, len(rows))
+	for _, row := range rows {
+		if validSessionID(row.ID) {
+			sessions = append(sessions, row)
+		}
+	}
+	body := map[string]any{"sessions": sessions}
+	if err != nil {
+		body["error"] = err.Error()
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, body)
 }
 
 func (s *Server) handleRescan(w http.ResponseWriter, r *http.Request) {

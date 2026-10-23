@@ -14,6 +14,7 @@ type Config struct {
 	Port         int
 	DBPath       string
 	ClaudeDir    string
+	ClaudeLive   string // Claude Code per-process status files; derived from ClaudeDir
 	CodexDir     string
 	CodexIndex   string
 	OpenCodeDB   string
@@ -55,6 +56,11 @@ func (c *Config) resolve(goos string, getenv func(string) string) {
 	}
 	if c.ClaudeDir == "" {
 		c.ClaudeDir = filepath.Join(home, ".claude", "projects")
+	}
+	if c.ClaudeLive == "" {
+		// Claude Code keeps sessions/ next to projects/ in its config dir, so a
+		// -claude-dir pointing at another config dir moves both together.
+		c.ClaudeLive = filepath.Join(filepath.Dir(filepath.Clean(c.ClaudeDir)), "sessions")
 	}
 	if c.CodexDir == "" {
 		c.CodexDir = filepath.Join(home, ".codex", "sessions")

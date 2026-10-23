@@ -48,6 +48,9 @@ export const state = {
   // every session involved in a parent/child link, fetched once and filtered
   // client side so the detail view can link across scopes.
   relations: [],
+  // sessions with a running agent process (/api/live), the most urgent row per
+  // "agent|id", for the status chips on list cards / rows.
+  live: new Map(),
   // transcript of the session currently open in the detail modal
   msgs: [],
   current: null,

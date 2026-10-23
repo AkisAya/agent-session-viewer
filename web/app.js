@@ -13,6 +13,7 @@ import { loadProjects, renderProjects, renderCrumb } from "./projects.js";
 import { loadSessions, renderList, copyResume, exportCSV } from "./list.js";
 import { loadPanels, paintPanels, loadTop, syncDashboardControls } from "./dashboard.js";
 import { loadRelations, openDetail, closeDetail } from "./detail.js";
+import { startLive } from "./live.js";
 
 /* ---------- view switching ---------- */
 function applyView() {
@@ -617,3 +618,4 @@ loadProjects().then(async () => {
   writeURL(false);
 });
 pollScan();
+startLive();

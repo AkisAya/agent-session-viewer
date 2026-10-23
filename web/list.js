@@ -5,6 +5,7 @@ import { $, esc, fmtNum, fmtTime, fmtDate, displayTitle, hl, midPath, shortModel
 import { state, isStarred, tagsOf } from "./state.js";
 import { api } from "./api.js";
 import { costOf, fmtCost } from "./pricing.js";
+import { liveSlot } from "./live.js";
 
 export function showEmpty(text, hint, retry, extra) {
   $("list").innerHTML = "";
@@ -115,6 +116,7 @@ function cardHTML(s, subCount) {
   return `<div class="card agent-${esc(s.agent)}${starred ? " starred" : ""}" data-agent="${esc(s.agent)}" data-id="${esc(s.id)}" tabindex="0" role="button">
     <div class="card-top">
       <span class="badge ${esc(s.agent)}">${esc(s.agent)}</span>
+      ${liveSlot(s.agent, s.id)}
       ${s.model ? `<span class="card-model" title="${esc(s.model)}">${esc(shortModel(s.model))}</span>` : ""}
       ${s.relation === "subagent" ? `<span class="tag-sub">subagent</span>` : ""}
       <button type="button" class="card-star${starred ? " on" : ""}" data-star="${esc(sessionKey(s.agent, s.id))}" title="${starred ? "取消收藏" : "收藏"}">${starred ? "★" : "☆"}</button>
@@ -150,7 +152,7 @@ function tableHTML(rows) {
       return `<tr class="session-row agent-${esc(s.agent)}${starred ? " starred" : ""}" data-agent="${esc(s.agent)}" data-id="${esc(s.id)}" tabindex="0" role="button">
         <td><button type="button" class="card-star${starred ? " on" : ""}" data-star="${esc(sessionKey(s.agent, s.id))}" title="${starred ? "取消收藏" : "收藏"}">${starred ? "★" : "☆"}</button></td>
         <td><span class="badge ${esc(s.agent)}">${esc(s.agent)}</span></td>
-        <td class="st-title" title="${esc(displayTitle(s))} — ${esc(s.cwd || "")}">${hl(displayTitle(s), state.q)}${s.relation === "subagent" ? ` <span class="tag-sub">subagent</span>` : ""}${tagsOf(s.agent, s.id).map((t) => ` <span class="tag">#${esc(t)}</span>`).join("")}</td>
+        <td class="st-title" title="${esc(displayTitle(s))} — ${esc(s.cwd || "")}">${liveSlot(s.agent, s.id)}${hl(displayTitle(s), state.q)}${s.relation === "subagent" ? ` <span class="tag-sub">subagent</span>` : ""}${tagsOf(s.agent, s.id).map((t) => ` <span class="tag">#${esc(t)}</span>`).join("")}</td>
         <td class="st-cwd" title="${esc(s.cwd)}">${esc(shortPath(s.cwd))}</td>
         <td class="st-model" title="${esc(s.model)}">${esc(s.model)}</td>
         <td class="num">${s.msgCount || 0}</td>

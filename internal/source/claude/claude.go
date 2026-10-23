@@ -17,6 +17,9 @@ import (
 // Source scans the Claude Code projects directory.
 type Source struct {
 	Root string // ~/.claude/projects
+	// SessionsDir holds the per-process status files of running Claude Code
+	// sessions (~/.claude/sessions). Empty disables live status.
+	SessionsDir string
 }
 
 func (s *Source) Name() string { return "claude" }

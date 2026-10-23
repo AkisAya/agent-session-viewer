@@ -39,6 +39,7 @@ export const api = {
   tools: (params) => request("/api/tools", { params }),
   models: (params) => request("/api/models", { params }),
   relations: () => request("/api/relations"),
+  live: () => request("/api/live"),
   transcript: (agent, id, signal) =>
     request(`/api/sessions/${encodeURIComponent(agent)}/${encodeURIComponent(id)}`, { signal }),
   sessionMeta: (agent, id) =>

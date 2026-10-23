@@ -26,6 +26,7 @@ func TestResolveDefaults(t *testing.T) {
 	}{
 		{"db", c.DBPath, filepath.Join(base, "agent-session-viewer", "index.db")},
 		{"claude", c.ClaudeDir, filepath.Join(home, ".claude", "projects")},
+		{"claude live", c.ClaudeLive, filepath.Join(home, ".claude", "sessions")},
 		{"codex", c.CodexDir, filepath.Join(home, ".codex", "sessions")},
 		{"codex index", c.CodexIndex, filepath.Join(home, ".codex", "session_index.jsonl")},
 		{"opencode", c.OpenCodeDB, filepath.Join(home, ".local", "share", "opencode", "opencode.db")},
@@ -42,6 +43,15 @@ func TestResolveKeepsExplicitValues(t *testing.T) {
 	c.Resolve()
 	if c.Host != "0.0.0.0" || c.Port != 9000 {
 		t.Fatalf("explicit values overwritten: host=%q port=%d", c.Host, c.Port)
+	}
+}
+
+// The live status files sit next to projects/, so -claude-dir moves them too.
+func TestResolveClaudeLiveFollowsClaudeDir(t *testing.T) {
+	c := Config{ClaudeDir: filepath.Join("/alt", "claude", "projects") + string(filepath.Separator)}
+	c.Resolve()
+	if want := filepath.Join("/alt", "claude", "sessions"); c.ClaudeLive != want {
+		t.Fatalf("claude live = %q, want %q", c.ClaudeLive, want)
 	}
 }
 

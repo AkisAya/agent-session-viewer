@@ -18,6 +18,10 @@
   --mark: #3a3320;
   --mark-fg: #ffe08a;
   --danger: #f2777a;
+  /* live session status */
+  --st-busy: #3fb950;
+  --st-waiting: #e3a008;
+  --st-idle: #8b95a8;
 }
 
 :root[data-theme="light"] {
@@ -39,6 +43,9 @@
   --mark: #ffe9a8;
   --mark-fg: #6a4b00;
   --danger: #c0392b;
+  --st-busy: #1a7f37;
+  --st-waiting: #b26b00;
+  --st-idle: #6b7385;
 }
 
 * { box-sizing: border-box; }
@@ -1200,3 +1207,41 @@ select.sidebar-search { cursor: pointer; }
   width: 12px; height: 12px; fill: none; stroke: currentColor;
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
+
+/* ---------- live sessions ---------- */
+.st-busy { --st: var(--st-busy); }
+.st-waiting { --st: var(--st-waiting); }
+.st-idle { --st: var(--st-idle); }
+
+.live-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--st); flex: 0 0 auto;
+}
+/* a working agent pulses; reduced motion stops it via the global rule */
+.st-busy .live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st) 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--st) 0%, transparent); }
+}
+
+/* top-bar counts: a read-only stat, visible even where .stats is hidden */
+.live-summary { display: inline-flex; align-items: center; gap: 10px; }
+.lp { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg); }
+.lp-label { color: var(--muted); font-weight: 400; }
+@media (max-width: 900px) {
+  /* dots and numbers only; the labels stay readable to screen readers */
+  .lp-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .live-summary { gap: 8px; }
+}
+
+/* status chip on cards / table rows */
+.live-slot:empty { display: none; }
+.live-chip {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap;
+  color: color-mix(in srgb, var(--st) 85%, var(--fg));
+  background: color-mix(in srgb, var(--st) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--st) 35%, transparent);
+}
+.live-chip .live-dot { width: 6px; height: 6px; }
+.st-title .live-slot { margin-right: 6px; }

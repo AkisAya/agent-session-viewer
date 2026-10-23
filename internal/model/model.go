@@ -29,6 +29,23 @@ type Session struct {
 	Relation string `json:"relation,omitempty"`
 }
 
+// LiveSession is a session whose agent process is running right now, read
+// fresh from the agent's own status file on every request (never cached).
+// Status is the agent's raw value; for Claude Code it is one of
+// busy | shell | waiting | idle. WaitingFor says what a "waiting" session is
+// blocked on ("dialog open", "input needed", ...). Session is the cached
+// summary, absent when the index has not seen the transcript yet.
+type LiveSession struct {
+	Agent      string    `json:"agent"`
+	ID         string    `json:"id"`
+	PID        int       `json:"pid"`
+	CWD        string    `json:"cwd"`
+	Status     string    `json:"status"`
+	WaitingFor string    `json:"waitingFor,omitempty"`
+	Since      time.Time `json:"since"` // when Status last changed
+	Session    *Session  `json:"session,omitempty"`
+}
+
 // Message is one turn of a conversation. Role is one of:
 // user | assistant | reasoning | tool | system | compact.
 // A "compact" message marks a context compaction; Text is the summary the

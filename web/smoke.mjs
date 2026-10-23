@@ -87,6 +87,7 @@ const shapes = {
   "/api/tools": { tools: [], total: 0 },
   "/api/models": [],
   "/api/relations": [],
+  "/api/live": { sessions: [] },
   "/api/rescan": { ok: true },
 };
 const transcript = [
@@ -190,6 +191,39 @@ assert(cache.get("list-info").textContent.includes("已显示"), "pagination rep
 state.mode = "cards";
 state.total = 0;
 delete state.tags["claude|s1"];
+
+/* ---------- live sessions ---------- */
+{
+  const live = await mod("live.js");
+  live.setLive([
+    { agent: "claude", id: "w1", pid: 11, status: "waiting", waitingFor: "dialog open", since: new Date().toISOString() },
+    { agent: "claude", id: "s1", pid: 12, status: "busy", since: new Date().toISOString() },
+    // the same session open in a second terminal: the chip shows the more urgent
+    { agent: "claude", id: "s1", pid: 14, status: "idle", since: new Date().toISOString() },
+  ]);
+  renderList([
+    { agent: "claude", id: "s1", title: "Fix the bug", updatedAt: "2026-01-01T12:00:00Z" },
+    { agent: "claude", id: "w1", title: "Needs me", updatedAt: "2026-01-01T12:00:00Z" },
+    { agent: "claude", id: "done", title: "Finished", updatedAt: "2026-01-01T12:00:00Z" },
+  ]);
+  const sum = cache.get("live-summary");
+  assert(!sum.hidden && sum.innerHTML.includes("运行 </span>1") && sum.innerHTML.includes("待处理 </span>1") && !sum.innerHTML.includes("等待输入"), "the top bar counts each running session once, by its most urgent status");
+  assert(sum.title.includes("2 个会话"), "the top-bar counts spell out the breakdown on hover");
+  const html = cache.get("list").innerHTML;
+  assert(/class="live-chip st-busy"[^>]*>.*运行中/.test(html), "a card of a running session shows its live status");
+  assert(/class="live-chip st-waiting"[^>]*>.*等待确认/.test(html), "a waiting card says what it waits for");
+  assert((html.match(/class="live-chip /g) || []).length === 2, "a session without a running process has no chip");
+
+  // A later poll patches the chip in place instead of re-rendering the list.
+  const slot = { dataset: { live: "claude|s1" }, innerHTML: "" };
+  const qsa = globalThis.document.querySelectorAll;
+  globalThis.document.querySelectorAll = (sel) => (sel.includes("live-slot") ? [slot] : []);
+  live.setLive([{ agent: "claude", id: "s1", status: "idle", since: new Date().toISOString() }]);
+  assert(slot.innerHTML.includes("st-idle") && slot.innerHTML.includes("等待输入"), "a status change repaints the card chip");
+  live.setLive([]);
+  assert(slot.innerHTML === "" && sum.hidden, "an ended session clears its chip and the top-bar counts");
+  globalThis.document.querySelectorAll = qsa;
+}
 
 /* ---------- tags on cards ---------- */
 state.tags["claude|s1"] = ["demo"];

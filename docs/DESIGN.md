@@ -32,6 +32,7 @@
 - **按来源累计用量**：消息数 / Token / 花费以 `(agent, 会话, 来源文件)` 为主键存于 `session_usage`，会话行由各来源求和得出，因此一个横跨多个 rollout 文件的 Codex 续接会话会正确累加而不是相互覆盖。每个来源单独记录「整文件解析 = 覆盖」还是「增量解析 = 累加」，避免手工组合多个绝对/相对标志。
 - **活动 / 工具直方图**：`activity`（按天消息数）与 `tool_use`（按工具调用次数）同样以 `(agent, 会话, 来源文件)` 为主键存储。整文件解析视为该来源文件的绝对值（直接替换），增量解析只累加新增行——因为一个 Codex 会话可能横跨多个 rollout 文件，统计必须落到来源文件维度，否则后解析的文件会覆盖先前的统计。来源文件消失且会话再无其他来源时一并清理。
 - **来源提示**：对话内容按索引里记录的来源路径直接定位（回退到目录扫描），逐行流式解析，不进常驻内存。
+- **运行状态**：`/api/live` 每次请求直接读取 agent 自己写的进程状态文件，不进索引、不触发扫描，前端在页面可见时每 5 秒轮询，结果用于卡片 / 表格行上的状态标签和顶栏的数量统计（同一会话开在两个终端时按更紧急的状态只计一次），状态变化只原地替换标签（不重绘列表，焦点与滚动位置不变）。Claude Code 为每个运行中进程写 `<配置目录>/sessions/<pid>.json`，含 `sessionId`、`cwd`、`status`（`busy` / `shell` / `waiting` / `idle`）、`waitingFor`（等待原因，如 `dialog open`）与 `statusUpdatedAt`。这是 Claude Code 的内部格式，字段一律按可选处理，解析失败的文件（例如恰好在写入中）跳过、下次轮询再读。崩溃进程会留下状态文件，pid 也会被复用：先用文件名里的 pid 做存活检查（Unix `kill(pid, 0)`，Windows `OpenProcess` + 退出码），死进程的文件不打开；macOS 上再用 sysctl 取进程启动时间，与文件里的 `procStart`（Claude Code 以 `TZ=UTC` 运行 `ps -o lstart=` 得到）比对，相差超过 2 秒视为 pid 复用。Linux / Windows 暂只做存活检查。同目录的 `<pid>.<hash>.key` 是密钥文件，从不读取。实测 7 个运行中会话一次约 2ms，残留文件按文件名过滤后每个约 1.5µs，开销取决于运行中的进程数，与历史会话数量无关。
 - **工具名归一化**：四个 agent 的工具命名各不相同（Claude 的 `Bash`、Codex 的 `exec_command`、OpenCode 的 `shell`/`bash`、DSH 的 `bash`），在解析阶段统一映射到规范名，MCP 工具保留为 `mcp:server.tool`。
 
 ## 项目结构
@@ -45,9 +46,10 @@ internal/source/claude  Claude Code 解析
 internal/source/codex   Codex 解析（跨 rollout 文件合并对话）
 internal/source/opencode OpenCode SQLite 解析
 internal/source/dsh     DSH 会话日志解析（zstd 帧级增量）
-internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API）
+internal/proc           进程存活与启动时间检查（运行状态用，单次 syscall，不 exec ps）
+internal/index          缓存数据库 + 增量扫描编排（index.go 生命周期/扫描，store.go 写侧，query.go 读侧 API，live.go 运行状态汇总）
 internal/api            HTTP API
-web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util/pricing 加 list/dashboard/projects/stats/detail 视图模块
+web                     内嵌前端：原生 ES 模块（无构建），入口 app.js，state/api/util/pricing 加 list/dashboard/projects/stats/detail/live 视图模块
 web/smoke.mjs           前端冒烟测试（node，桩 DOM 加载真实模块图，不参与内嵌）
 scripts/release-notes.sh 发布说明：从 CHANGELOG.md 抽取当前 tag 的段落，附与上一个稳定 tag 的 compare 链接
 scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并用无头 Chrome 截图到 docs/screenshots
@@ -71,6 +73,7 @@ scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并
 | GET | `/api/models?agent=&cwd=` | 按模型聚合的会话数 / 消息数 / Token（含输入 / 输出 / 缓存读）/ 花费 |
 | GET | `/api/tools?agent=&cwd=&limit=` | 工具调用排行及未截断的总调用次数 |
 | GET | `/api/relations?agent=&cwd=` | 处于父子关系中的会话（含父与子），供详情页显示并跳转到主会话 / subagent / 分叉 / 续接的关联会话 |
+| GET | `/api/live` | 正在运行的会话：`{sessions:[{agent,id,pid,cwd,status,waitingFor,since,session}]}`，按待处理 → 运行中 → 等待输入排序，同一状态内最近变化的在前；`session` 是已索引的会话概要，尚未被扫描到时缺省。每次请求实时读取进程状态文件（`Cache-Control: no-store`）；某个来源读取失败时在 `error` 中说明，其余来源照常返回 |
 | POST | `/api/rescan` | 触发异步增量扫描；要求 `Content-Type: application/json`，通过 `/api/scan` 轮询进度 |
 
 ## 扩展新数据源
@@ -79,3 +82,4 @@ scripts/screenshots.mjs  README 截图：生成合成会话数据，起服务并
 2. 在 `internal/index` 注册来源；统计一律落到 `(agent, 会话, 来源文件)`。
 3. 在 `internal/api` 与前端视图（`web/`）中补充对应的 agent 标识与展示。
 4. 会话 id 需匹配 `[A-Za-z0-9._-]`（详情接口的路径安全校验），否则深链和详情页无法打开。
+5. 可选：实现 `source.Live` 接口（返回运行中的会话及其状态）即可在卡片上显示运行状态；它在每次 `/api/live` 请求时调用，必须足够轻量，状态目录不存在时返回空而不是错误。

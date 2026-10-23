@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -17,6 +18,13 @@ import (
 )
 
 func newTestServer(t *testing.T) http.Handler {
+	t.Helper()
+	return newLiveTestServer(t, "")
+}
+
+// newLiveTestServer indexes one Claude session (sess-1) and reads live status
+// files from liveDir ("" disables live status).
+func newLiveTestServer(t *testing.T, liveDir string) http.Handler {
 	t.Helper()
 	root := t.TempDir()
 	dir := filepath.Join(root, "project")
@@ -29,7 +37,7 @@ func newTestServer(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 
-	ix, err := index.Open(index.Options{Path: filepath.Join(t.TempDir(), "index.db")}, &claude.Source{Root: root})
+	ix, err := index.Open(index.Options{Path: filepath.Join(t.TempDir(), "index.db")}, &claude.Source{Root: root, SessionsDir: liveDir})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -162,6 +170,53 @@ func TestJSONIsGzipped(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `"test"`) {
 		t.Fatalf("decoded body = %s", body)
+	}
+}
+
+func TestLiveIsAnEmptyListWithoutStatusFiles(t *testing.T) {
+	rec := get(t, newTestServer(t), "/api/live")
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"sessions":[]}` {
+		t.Fatalf("live = %d %s, want an empty sessions array", rec.Code, rec.Body.String())
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", cc)
+	}
+}
+
+// The test process itself stands in for a running Claude Code: its pid is
+// alive, so its status file is reported and joined with the indexed summary.
+func TestLiveJoinsTheIndexedSession(t *testing.T) {
+	dir := t.TempDir()
+	pid, ppid := strconv.Itoa(os.Getpid()), strconv.Itoa(os.Getppid())
+	for name, body := range map[string]string{
+		pid + ".json": `{"pid":` + pid + `,"sessionId":"sess-1","cwd":"/tmp/p","status":"waiting","waitingFor":"dialog open","statusUpdatedAt":1792740117076}`,
+		// alive, but an id the transcript endpoints would reject
+		ppid + ".json": `{"pid":` + ppid + `,"sessionId":"../escape","status":"busy"}`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := get(t, newLiveTestServer(t, dir), "/api/live")
+	var body struct {
+		Sessions []struct {
+			Agent, ID, Status, WaitingFor string
+			Session                       *struct{ ID, Title string }
+		} `json:"sessions"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode %s: %v", rec.Body.String(), err)
+	}
+	if body.Error != "" || len(body.Sessions) != 1 {
+		t.Fatalf("live = %s, want one row", rec.Body.String())
+	}
+	got := body.Sessions[0]
+	if got.Agent != "claude" || got.ID != "sess-1" || got.Status != "waiting" || got.WaitingFor != "dialog open" {
+		t.Fatalf("row = %+v", got)
+	}
+	if got.Session == nil || got.Session.ID != "sess-1" || got.Session.Title != "hi" {
+		t.Fatalf("row not joined with the indexed summary: %s", rec.Body.String())
 	}
 }
 

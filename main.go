@@ -66,7 +66,7 @@ func main() {
 	}
 
 	sources := []source.Source{
-		&claude.Source{Root: cfg.ClaudeDir},
+		&claude.Source{Root: cfg.ClaudeDir, SessionsDir: cfg.ClaudeLive},
 		&codex.Source{Root: cfg.CodexDir, Index: cfg.CodexIndex},
 		&opencode.Source{Path: cfg.OpenCodeDB},
 		&dsh.Source{Root: cfg.DSHDir},
